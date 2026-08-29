@@ -1,0 +1,6 @@
+{
+  "name": "متابع التغذية والصحة | Nutrition Tracker",
+  "description": "تطبيق متكامل لمتابعة التغذية والوجبات، شرب الماء، النوم والنشاط، قياسات الجسم والتواصل بين العميل والأخصائي مع تقارير وإحصائيات متقدمة.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

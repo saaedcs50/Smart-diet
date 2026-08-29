@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  html {
+    font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html:not(.dark) {
+    color-scheme: light;
+  }
+
+  body {
+    font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    background-color: #f8fafc;
+    color: #0f172a;
+  }
+
+  html.dark body {
+    background-color: #020617;
+    color: #f8fafc;
+  }
+
+  input, textarea, pre {
+    user-select: text;
+  }
+}
