@@ -2,20 +2,20 @@ import React, { useState } from 'react';
 import { Lock, KeyRound, X } from 'lucide-react';
 
 interface PinModalProps {
-  correctPin: string;
-  onSuccess: () => void;
+  correctPin?: string;
+  onSuccess: (pin: string) => void;
   onClose: () => void;
 }
 
-export const PinModal: React.FC<PinModalProps> = ({ correctPin, onSuccess, onClose }) => {
+export const PinModal: React.FC<PinModalProps> = ({ onSuccess, onClose }) => {
   const [enteredPin, setEnteredPin] = useState('');
   const [error, setError] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (enteredPin === (correctPin || '1234')) {
+    if (enteredPin === '32184') {
       setError(false);
-      onSuccess();
+      onSuccess(enteredPin);
     } else {
       setError(true);
       setEnteredPin('');
@@ -78,10 +78,6 @@ export const PinModal: React.FC<PinModalProps> = ({ correctPin, onSuccess, onClo
             <KeyRound className="w-4 h-4" />
             دخول للوحة التحكم
           </button>
-
-          <p className="text-[11px] text-slate-400 text-center">
-            الرمز الافتراضي: 1234 (يمكنك تغييره من الإعدادات)
-          </p>
         </form>
       </div>
     </div>

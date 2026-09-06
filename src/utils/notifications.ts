@@ -1,10 +1,43 @@
 // OS-Resilient PWA & Local Notification System with Self-Healing SW & Catch-Up Logic
+import { getTodayDateString, loadPlanFromStorage, loadDayLog, getActiveFastingSession } from './storage';
+import { PlanConfig, DayLog, MedicationSlot, MedicationItem } from '../types';
+import { getAllScheduledDoses, WITH_FOOD_LABELS } from './medications';
 
 export interface MealReminderConfig {
   id: string;
   name: string;
   time: string; // HH:mm format (24h)
   enabled: boolean;
+}
+
+export interface MedicationReminderSettings {
+  enabled: boolean;
+  offsetMinutesBeforeMeal: number; // e.g. 15 or 30 mins before/after meals
+  disabledMedicationIds: string[]; // Specific medication IDs turned off
+  customSlotTimes?: Partial<Record<MedicationSlot, string>>; // Optional custom time overrides
+}
+
+export interface SleepReminderSettings {
+  enabled: boolean;
+  time: string; // HH:mm (default 22:30)
+  morningCheckEnabled: boolean; // Gentle morning reminder to log sleep
+  morningTime: string; // HH:mm (default 08:00)
+}
+
+export interface HabitsReminderSettings {
+  enabled: boolean;
+  time: string; // HH:mm (default 10:00)
+}
+
+export interface WeeklyWeightReminderSettings {
+  enabled: boolean;
+  weekday: number; // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday (default: 6 - السبت)
+  time: string; // HH:mm (default 09:00)
+}
+
+export interface FastingReminderSettings {
+  enabled: boolean;
+  notifyOnComplete: boolean;
 }
 
 export interface NotificationSettings {
@@ -21,6 +54,11 @@ export interface NotificationSettings {
     enabled: boolean;
     meals: MealReminderConfig[];
   };
+  medicationReminders: MedicationReminderSettings;
+  sleepReminder: SleepReminderSettings;
+  habitsReminder: HabitsReminderSettings;
+  weeklyWeightReminder: WeeklyWeightReminderSettings;
+  fastingReminders: FastingReminderSettings;
   workoutReminder: {
     enabled: boolean;
     time: string; // HH:mm
@@ -67,9 +105,34 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
       { id: 'm5', name: 'وجبة العشاء', time: '21:30', enabled: true },
     ],
   },
+  medicationReminders: {
+    enabled: false,
+    offsetMinutesBeforeMeal: 15,
+    disabledMedicationIds: [],
+    customSlotTimes: {},
+  },
+  sleepReminder: {
+    enabled: false,
+    time: '22:30',
+    morningCheckEnabled: false,
+    morningTime: '08:00',
+  },
+  habitsReminder: {
+    enabled: false,
+    time: '10:00',
+  },
+  weeklyWeightReminder: {
+    enabled: false,
+    weekday: 6, // السبت
+    time: '09:00',
+  },
+  fastingReminders: {
+    enabled: false,
+    notifyOnComplete: true,
+  },
   workoutReminder: {
     enabled: false,
-    time: '17:00',
+    time: '17:30',
   },
   nightReviewReminder: {
     enabled: true,
@@ -207,6 +270,26 @@ export function loadNotificationSettings(): NotificationSettings {
         ...DEFAULT_NOTIFICATION_SETTINGS.mealReminders,
         ...(parsed.mealReminders || {}),
       },
+      medicationReminders: {
+        ...DEFAULT_NOTIFICATION_SETTINGS.medicationReminders,
+        ...(parsed.medicationReminders || {}),
+      },
+      sleepReminder: {
+        ...DEFAULT_NOTIFICATION_SETTINGS.sleepReminder,
+        ...(parsed.sleepReminder || {}),
+      },
+      habitsReminder: {
+        ...DEFAULT_NOTIFICATION_SETTINGS.habitsReminder,
+        ...(parsed.habitsReminder || {}),
+      },
+      weeklyWeightReminder: {
+        ...DEFAULT_NOTIFICATION_SETTINGS.weeklyWeightReminder,
+        ...(parsed.weeklyWeightReminder || {}),
+      },
+      fastingReminders: {
+        ...DEFAULT_NOTIFICATION_SETTINGS.fastingReminders,
+        ...(parsed.fastingReminders || {}),
+      },
       workoutReminder: {
         ...DEFAULT_NOTIFICATION_SETTINGS.workoutReminder,
         ...(parsed.workoutReminder || {}),
@@ -230,8 +313,99 @@ export function saveNotificationSettings(settings: NotificationSettings): void {
   }
 }
 
+// Time manipulation helpers
+export function parseTimeString(timeStr: string): { hours: number; minutes: number } {
+  const [h, m] = (timeStr || '12:00').split(':').map(Number);
+  return { 
+    hours: isNaN(h) ? 12 : Math.max(0, Math.min(23, h)), 
+    minutes: isNaN(m) ? 0 : Math.max(0, Math.min(59, m)) 
+  };
+}
+
+export function formatTimeString(hours: number, minutes: number): string {
+  const totalMinutes = ((hours * 60 + minutes) % (24 * 60) + (24 * 60)) % (24 * 60);
+  const normalizedHours = Math.floor(totalMinutes / 60);
+  const normalizedMinutes = totalMinutes % 60;
+  return `${String(normalizedHours).padStart(2, '0')}:${String(normalizedMinutes).padStart(2, '0')}`;
+}
+
+export function addMinutesToTimeString(timeStr: string, minutesToAdd: number): string {
+  const { hours, minutes } = parseTimeString(timeStr);
+  return formatTimeString(hours, minutes + minutesToAdd);
+}
+
+// Helper to find meal time from meal list by keywords
+export function getMealTimeByKeywords(
+  meals: MealReminderConfig[], 
+  keywords: string[], 
+  fallbackIndex: number, 
+  fallbackTime: string
+): string {
+  const matched = meals.find((m) => {
+    const n = m.name.toLowerCase();
+    return keywords.some((k) => n.includes(k.toLowerCase()));
+  });
+  if (matched?.time) return matched.time;
+  if (meals[fallbackIndex]?.time) return meals[fallbackIndex].time;
+  return fallbackTime;
+}
+
+// Resolve approximate scheduled time for a medication slot based on meal settings
+export function getMedicationSlotEstimatedTime(
+  slot: MedicationSlot,
+  meals: MealReminderConfig[],
+  customSlotTimes?: Partial<Record<MedicationSlot, string>>,
+  offsetMinutes: number = 15
+): string | null {
+  // If user provided a custom override for this slot, use it
+  if (customSlotTimes && customSlotTimes[slot]) {
+    return customSlotTimes[slot]!;
+  }
+
+  if (slot === 'prn') {
+    return null; // PRN is as needed, no fixed automatic alarm
+  }
+
+  const breakfastTime = getMealTimeByKeywords(meals, ['إفطار', 'فطور', 'breakfast'], 0, '08:30');
+  const lunchTime = getMealTimeByKeywords(meals, ['غداء', 'غدا', 'lunch'], 2, '15:30');
+  const dinnerTime = getMealTimeByKeywords(meals, ['عشاء', 'عشا', 'dinner'], 4, '21:30');
+
+  switch (slot) {
+    case 'before_breakfast':
+      return addMinutesToTimeString(breakfastTime, -Math.max(15, offsetMinutes));
+    case 'with_breakfast':
+      return breakfastTime;
+    case 'after_breakfast':
+      return addMinutesToTimeString(breakfastTime, Math.max(15, offsetMinutes));
+
+    case 'before_lunch':
+      return addMinutesToTimeString(lunchTime, -Math.max(15, offsetMinutes));
+    case 'with_lunch':
+      return lunchTime;
+    case 'after_lunch':
+      return addMinutesToTimeString(lunchTime, Math.max(15, offsetMinutes));
+
+    case 'before_dinner':
+      return addMinutesToTimeString(dinnerTime, -Math.max(15, offsetMinutes));
+    case 'with_dinner':
+      return dinnerTime;
+    case 'after_dinner':
+      return addMinutesToTimeString(dinnerTime, Math.max(15, offsetMinutes));
+
+    case 'morning':
+      return '08:00';
+    case 'evening':
+      return '20:00';
+    case 'before_sleep':
+      return '22:30';
+
+    default:
+      return '12:00';
+  }
+}
+
 // Multi-tone Web Audio API sound generator
-export function playChimeSound(type: 'water' | 'meal' | 'test' = 'meal'): void {
+export function playChimeSound(type: 'water' | 'meal' | 'medication' | 'sleep' | 'workout' | 'test' = 'meal'): void {
   try {
     const AudioCtx =
       window.AudioContext ||
@@ -252,6 +426,43 @@ export function playChimeSound(type: 'water' | 'meal' | 'test' = 'meal'): void {
       gain.connect(ctx.destination);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.25);
+    } else if (type === 'medication') {
+      // Crisp, pleasant double chime for medication
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(880, ctx.currentTime); // A5
+      gain1.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(ctx.currentTime);
+      osc1.stop(ctx.currentTime + 0.25);
+
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(1174.66, ctx.currentTime + 0.1); // D6
+      gain2.gain.setValueAtTime(0, ctx.currentTime);
+      gain2.gain.setValueAtTime(0.25, ctx.currentTime + 0.1);
+      gain2.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(ctx.currentTime + 0.1);
+      osc2.stop(ctx.currentTime + 0.5);
+    } else if (type === 'sleep') {
+      // Soft calming low chime
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
+      osc.frequency.exponentialRampToValueAtTime(329.63, ctx.currentTime + 0.8); // E4
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.8);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.8);
     } else {
       // Pleasant 2-tone melodic chime
       const osc1 = ctx.createOscillator();
@@ -288,7 +499,7 @@ export async function sendLocalNotification(
   body: string,
   tag: string = 'general',
   playSound: boolean = true,
-  soundType: 'water' | 'meal' | 'test' = 'meal'
+  soundType: 'water' | 'meal' | 'medication' | 'sleep' | 'workout' | 'test' = 'meal'
 ): Promise<boolean> {
   if (!isNotificationSupported()) return false;
   if (Notification.permission !== 'granted') return false;
@@ -377,15 +588,35 @@ export function syncMealRemindersWithPlan(
 }
 
 // Background Reminder Checker (invoked on interval)
-export function checkAndTriggerReminders(settings: NotificationSettings): void {
+export function checkAndTriggerReminders(
+  settings: NotificationSettings,
+  planOverride?: PlanConfig,
+  dayOverride?: DayLog
+): void {
   if (!settings.enabled) return;
   if (getNotificationPermission() !== 'granted') return;
 
   const now = new Date();
-  const todayDateStr = now.toISOString().split('T')[0];
+  const todayDateStr = getTodayDateString(now);
   const currentHour = now.getHours();
   const currentMinutes = now.getMinutes();
   const currentTimeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}`;
+  const currentWeekday = now.getDay(); // 0 = Sunday, 6 = Saturday
+
+  // Load plan and day if not passed
+  let plan = planOverride;
+  if (!plan) {
+    try {
+      plan = loadPlanFromStorage();
+    } catch (e) {}
+  }
+
+  let day = dayOverride;
+  if (!day) {
+    try {
+      day = loadDayLog(todayDateStr);
+    } catch (e) {}
+  }
 
   let firedKeys: Record<string, boolean> = {};
   try {
@@ -405,7 +636,7 @@ export function checkAndTriggerReminders(settings: NotificationSettings): void {
     } catch (e) {}
   };
 
-  // 1. Water
+  // 1. Water Reminders
   if (settings.waterReminders.enabled) {
     if (currentHour >= settings.waterReminders.startHour && currentHour <= settings.waterReminders.endHour) {
       const lastWaterTime = Number(localStorage.getItem(LAST_WATER_NOTIF_KEY) || '0');
@@ -425,7 +656,7 @@ export function checkAndTriggerReminders(settings: NotificationSettings): void {
     }
   }
 
-  // 2. Meals
+  // 2. Meal Reminders
   if (settings.mealReminders.enabled) {
     settings.mealReminders.meals.forEach((meal) => {
       if (meal.enabled && meal.time === currentTimeStr) {
@@ -444,8 +675,153 @@ export function checkAndTriggerReminders(settings: NotificationSettings): void {
     });
   }
 
-  // 3. Workout
-  if (settings.workoutReminder.enabled && settings.workoutReminder.time === currentTimeStr) {
+  // 3. Medication Reminders (High Priority)
+  if (settings.medicationReminders?.enabled && plan?.medicationPlan?.items) {
+    const disabledIds = new Set(settings.medicationReminders.disabledMedicationIds || []);
+    const activeMeds = (plan.medicationPlan.items || []).filter(
+      (m: MedicationItem) => m.active !== false && !disabledIds.has(m.id)
+    );
+
+    const scheduled = getAllScheduledDoses(activeMeds);
+    scheduled.forEach((dose) => {
+      if (dose.isPRN) return; // Skip as-needed
+
+      const scheduledTime = getMedicationSlotEstimatedTime(
+        dose.slot,
+        settings.mealReminders.meals,
+        settings.medicationReminders.customSlotTimes,
+        settings.medicationReminders.offsetMinutesBeforeMeal || 15
+      );
+
+      if (scheduledTime === currentTimeStr) {
+        // If already taken today in dayLog, don't nag
+        const doseEntry = day?.medications?.[dose.key];
+        if (doseEntry && doseEntry.status === 'taken') {
+          return;
+        }
+
+        const key = `med_${dose.key}_${currentTimeStr}`;
+        if (!firedKeys[key]) {
+          markKeyFired(key);
+          const withFoodHint = dose.withFood && WITH_FOOD_LABELS[dose.withFood] 
+            ? ` (${WITH_FOOD_LABELS[dose.withFood].label})`
+            : '';
+          
+          sendLocalNotification(
+            `تذكير موعد الدواء: ${dose.medicationName} 💊`,
+            `حان موعد جرعة "${dose.medicationName}" (${dose.dose}) - ${dose.slotLabel}.${withFoodHint}`,
+            `med-${dose.key}`,
+            settings.sound,
+            'medication'
+          );
+        }
+      }
+    });
+  }
+
+  // 4. Sleep Reminders (Evening & Morning Quality Check)
+  if (settings.sleepReminder?.enabled) {
+    // 4a. Evening Bedtime Reminder
+    if (settings.sleepReminder.time === currentTimeStr) {
+      const key = `sleep_bedtime_${currentTimeStr}`;
+      if (!firedKeys[key]) {
+        markKeyFired(key);
+        sendLocalNotification(
+          'اقترب موعد النوم والراحة 🌙',
+          'احرص على تهدئة الأجواء وإراحة عقلك وجسمك. نومك الكافي هو سر نشاطك وصحتك غداً!',
+          'sleep-bedtime',
+          settings.sound,
+          'sleep'
+        );
+      }
+    }
+
+    // 4b. Optional Morning Sleep Logging Reminder
+    if (
+      settings.sleepReminder.morningCheckEnabled &&
+      settings.sleepReminder.morningTime === currentTimeStr
+    ) {
+      // Check if sleep already logged today
+      const hasSleepLogged = day && day.sleep && day.wake && day.quality;
+      if (!hasSleepLogged) {
+        const key = `sleep_morning_${currentTimeStr}`;
+        if (!firedKeys[key]) {
+          markKeyFired(key);
+          sendLocalNotification(
+            'صباح الخير والنشاط! 🌅',
+            'سجّل ساعات وجودة نومك الليلة الماضية في التطبيق لبدء يومك بوعي ومتابعة دقيقة.',
+            'sleep-morning',
+            settings.sound,
+            'sleep'
+          );
+        }
+      }
+    }
+  }
+
+  // 5. Habits & Daily Supplements Reminder
+  if (settings.habitsReminder?.enabled && settings.habitsReminder.time === currentTimeStr) {
+    const hasSupplements = plan?.supplements && plan.supplements.length > 0;
+    const hasChecklist = plan?.checklist && plan.checklist.length > 0;
+
+    if (hasSupplements || hasChecklist) {
+      const key = `habits_${currentTimeStr}`;
+      if (!firedKeys[key]) {
+        markKeyFired(key);
+        sendLocalNotification(
+          'تذكير العادات والمكملات اليومية 🌿',
+          'تفقد قائمة مهامك ومكملاتك المقررة لليوم واحرص على توثيق ما أنجزته مع د. شيماء.',
+          'habits-reminder',
+          settings.sound,
+          'meal'
+        );
+      }
+    }
+  }
+
+  // 6. Intermittent Fasting Window Complete Reminder
+  if (settings.fastingReminders?.enabled) {
+    const activeFasting = getActiveFastingSession();
+    if (activeFasting.isActive && activeFasting.startTime) {
+      const targetHours = activeFasting.targetHours || plan?.fastingTargetHours || 16;
+      const elapsedHours = (Date.now() - activeFasting.startTime) / (1000 * 60 * 60);
+
+      if (elapsedHours >= targetHours) {
+        const key = `fasting_complete_${activeFasting.startTime}`;
+        if (!firedKeys[key]) {
+          markKeyFired(key);
+          sendLocalNotification(
+            'اكتمل هدف الصيام المتقطع! ⏱️🎉',
+            `أتممت ${targetHours} ساعة صيام بنجاح! يمكنك الآن بدء نافذة تناول وجباتك الصحية بكل هدوء.`,
+            'fasting-completed',
+            settings.sound,
+            'meal'
+          );
+        }
+      }
+    }
+  }
+
+  // 7. Weekly Weight Measurement Reminder
+  if (settings.weeklyWeightReminder?.enabled) {
+    const targetWeekday = settings.weeklyWeightReminder.weekday ?? 6;
+    if (currentWeekday === targetWeekday && settings.weeklyWeightReminder.time === currentTimeStr) {
+      const key = `weekly_weight_${todayDateStr}`;
+      if (!firedKeys[key]) {
+        markKeyFired(key);
+        sendLocalNotification(
+          'موعد قياس وتوثيق الوزن الأسبوعي ⚖️',
+          'صباح الخير! حان وقت قياس وزنك الصباحي (على الريق) وتوثيقه لمتابعة مسار تقدمك الرائع.',
+          'weekly-weight',
+          settings.sound,
+          'meal'
+        );
+      }
+    }
+  }
+
+  // 8. Workout Reminder
+  if (settings.workoutReminder?.enabled && settings.workoutReminder.time === currentTimeStr) {
     const key = `workout_${currentTimeStr}`;
     if (!firedKeys[key]) {
       markKeyFired(key);
@@ -454,34 +830,90 @@ export function checkAndTriggerReminders(settings: NotificationSettings): void {
         '30 دقيقة حركة أو مشي هتفرق جداً في صحتك وحرقك ونشاطك اليومي!',
         'workout-reminder',
         settings.sound,
-        'meal'
+        'workout'
       );
     }
   }
 
-  // 4. Night Review
-  if (settings.nightReviewReminder.enabled && settings.nightReviewReminder.time === currentTimeStr) {
+  // 9. Smart Night Review (Enhanced & Context-Aware)
+  if (settings.nightReviewReminder?.enabled && settings.nightReviewReminder.time === currentTimeStr) {
     const key = `night_review_${currentTimeStr}`;
     if (!firedKeys[key]) {
       markKeyFired(key);
+
+      // Analyze remaining uncompleted tasks for today
+      const remainingItems: string[] = [];
+
+      if (plan && day) {
+        // Check water
+        const waterGoal = plan.dailyWaterGoalMl || 2500;
+        if (day.water < waterGoal * 0.75) {
+          remainingItems.push(`الماء (${day.water}/${waterGoal} مل)`);
+        }
+
+        // Check unlogged meals
+        if (plan.meals && plan.meals.length > 0) {
+          const unloggedMeals = plan.meals.filter((m) => !day.meals || !day.meals[m.id] || day.meals[m.id].type === 'none');
+          if (unloggedMeals.length > 0) {
+            remainingItems.push(`${unloggedMeals.length} وجبات`);
+          }
+        }
+
+        // Check medications
+        if (plan.medicationPlan?.items) {
+          const disabledIds = new Set(settings.medicationReminders?.disabledMedicationIds || []);
+          const activeMeds = plan.medicationPlan.items.filter((m) => m.active !== false && !disabledIds.has(m.id));
+          const scheduled = getAllScheduledDoses(activeMeds).filter((d) => !d.isPRN);
+          const unloggedMeds = scheduled.filter((d) => !day.medications?.[d.key] || day.medications[d.key].status !== 'taken');
+          if (unloggedMeds.length > 0) {
+            remainingItems.push(`${unloggedMeds.length} جرعات علاجية`);
+          }
+        }
+      }
+
+      let reviewBody = 'افتح التطبيق وسجل وجباتك ومستوى التزامك وشارك تقريرك مع د. شيماء!';
+      if (remainingItems.length > 0) {
+        reviewBody = `باقي تسجيلك اليوم: ${remainingItems.join(' • ')}. افتح التطبيق لتوثيق التزامك ومواصلة مسارك الناجح!`;
+      } else if (day && day.water >= (plan?.dailyWaterGoalMl || 2000)) {
+        reviewBody = 'يومك ممتاز ومكتمل بالكامل! 🌟 افتح التطبيق لتوثيق تقريرك اليومي ومشاركته مع الأخصائي.';
+      }
+
       sendLocalNotification(
         'مراجعة وتوثيق التزامك اليومي 🌙',
-        'افتح التطبيق وسجل وجباتك ومستوى التزامك وشارك تقريرك مع د. شيماء!',
+        reviewBody,
         'night-review',
         settings.sound,
-        'meal'
+        'sleep'
       );
     }
   }
 }
 
 // Missed Reminders Catch-Up Detector (Called on App Open)
-export function getMissedRemindersOnBoot(settings: NotificationSettings): string[] {
+export function getMissedRemindersOnBoot(
+  settings: NotificationSettings,
+  planOverride?: PlanConfig,
+  dayOverride?: DayLog
+): string[] {
   if (!settings.enabled) return [];
   
   const now = new Date();
-  const todayDateStr = now.toISOString().split('T')[0];
+  const todayDateStr = getTodayDateString(now);
   const currentMinutesTotal = now.getHours() * 60 + now.getMinutes();
+
+  let plan = planOverride;
+  if (!plan) {
+    try {
+      plan = loadPlanFromStorage();
+    } catch (e) {}
+  }
+
+  let day = dayOverride;
+  if (!day) {
+    try {
+      day = loadDayLog(todayDateStr);
+    } catch (e) {}
+  }
 
   let firedKeys: Record<string, boolean> = {};
   try {
@@ -496,7 +928,7 @@ export function getMissedRemindersOnBoot(settings: NotificationSettings): string
 
   const missed: string[] = [];
 
-  // Check meals that passed in the last 3 hours (180 mins) without firing
+  // 1. Check meals that passed in the last 3 hours (180 mins) without firing
   if (settings.mealReminders.enabled) {
     settings.mealReminders.meals.forEach((meal) => {
       if (!meal.enabled || !meal.time) return;
@@ -514,6 +946,37 @@ export function getMissedRemindersOnBoot(settings: NotificationSettings): string
     });
   }
 
+  // 2. Check scheduled medications in last 3 hours
+  if (settings.medicationReminders?.enabled && plan?.medicationPlan?.items) {
+    const disabledIds = new Set(settings.medicationReminders.disabledMedicationIds || []);
+    const activeMeds = (plan.medicationPlan.items || []).filter(
+      (m: MedicationItem) => m.active !== false && !disabledIds.has(m.id)
+    );
+    const scheduled = getAllScheduledDoses(activeMeds).filter((d) => !d.isPRN);
+
+    scheduled.forEach((dose) => {
+      const scheduledTime = getMedicationSlotEstimatedTime(
+        dose.slot,
+        settings.mealReminders.meals,
+        settings.medicationReminders.customSlotTimes,
+        settings.medicationReminders.offsetMinutesBeforeMeal || 15
+      );
+      if (!scheduledTime) return;
+
+      const [h, m] = scheduledTime.split(':').map(Number);
+      const doseMinutesTotal = h * 60 + m;
+      const diffMinutes = currentMinutesTotal - doseMinutesTotal;
+
+      if (diffMinutes >= 0 && diffMinutes <= 180) {
+        const key = `med_${dose.key}_${scheduledTime}`;
+        const isLoggedTaken = day?.medications?.[dose.key]?.status === 'taken';
+        if (!firedKeys[key] && !isLoggedTaken) {
+          missed.push(`دواء: ${dose.medicationName} (${scheduledTime})`);
+        }
+      }
+    });
+  }
+
   // Store last app boot timestamp
   try {
     localStorage.setItem(LAST_APP_BOOT_KEY, String(Date.now()));
@@ -523,14 +986,64 @@ export function getMissedRemindersOnBoot(settings: NotificationSettings): string
 }
 
 // Immediate Test Notification
-export async function sendTestNotification(): Promise<boolean> {
+export async function sendTestNotification(
+  category: 'general' | 'meal' | 'water' | 'medication' | 'sleep' | 'workout' | 'fasting' | 'weight' = 'general'
+): Promise<boolean> {
   const perm = await requestNotificationPermission();
   if (!perm) return false;
-  return sendLocalNotification(
-    'تنبيه تجريبي من دايت د. شيماء 🌿',
-    'مبروك! نظام الإشعارات نشط ومقاوم للتقييدات. ستصلك التنبيهات في موعدها تماماً.',
-    'test-notif',
-    true,
-    'test'
-  );
+
+  let title = 'تنبيه تجريبي من دايت د. شيماء 🌿';
+  let body = 'مبروك! نظام الإشعارات نشط ومقاوم للتقييدات. ستصلك التنبيهات في موعدها تماماً.';
+  let tag = 'test-notif';
+  let soundType: 'water' | 'meal' | 'medication' | 'sleep' | 'workout' | 'test' = 'test';
+
+  switch (category) {
+    case 'water':
+      title = 'تذكير شرب الماء 💧';
+      body = getRandomWaterMessage();
+      tag = 'test-water';
+      soundType = 'water';
+      break;
+    case 'meal':
+      title = 'موعد وجبتك المقررة: وجبة الغداء 🥗';
+      body = 'حان موعد تناول وجبتك الصحية المقررة مع د. شيماء. بالهنا والشفا!';
+      tag = 'test-meal';
+      soundType = 'meal';
+      break;
+    case 'medication':
+      title = 'تذكير موعد الدواء: كبسولة الفيتامينات 💊';
+      body = 'حان موعد جرعتك المقررة - بعد الإفطار (مع الأكل حتماً لحماية المعدة).';
+      tag = 'test-med';
+      soundType = 'medication';
+      break;
+    case 'sleep':
+      title = 'اقترب موعد النوم والراحة 🌙';
+      body = 'احرص على أخذ قسط كافٍ من النوم المريح لدعم معدل الحرق وتجديد طاقتك.';
+      tag = 'test-sleep';
+      soundType = 'sleep';
+      break;
+    case 'workout':
+      title = 'وقت النشاط والرياضة! 🏃‍♂️';
+      body = '30 دقيقة مشي أو تمارين هتفرق جداً في صحتك وحرقك ونشاطك اليومي!';
+      tag = 'test-workout';
+      soundType = 'workout';
+      break;
+    case 'fasting':
+      title = 'اكتمل هدف الصيام المتقطع! ⏱️🎉';
+      body = 'أتممت 16 ساعة صيام بنجاح! يمكنك الآن بدء نافذة تناول وجباتك الصحية.';
+      tag = 'test-fasting';
+      soundType = 'meal';
+      break;
+    case 'weight':
+      title = 'موعد قياس وتوثيق الوزن الأسبوعي ⚖️';
+      body = 'صباح الخير! حان وقت قياس وزنك الصباحي على الريق وتوثيقه في ملفك الصحي.';
+      tag = 'test-weight';
+      soundType = 'meal';
+      break;
+    default:
+      break;
+  }
+
+  return sendLocalNotification(title, body, tag, true, soundType);
 }
+

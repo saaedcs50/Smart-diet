@@ -2,14 +2,12 @@ import React from 'react';
 import { 
   Lightbulb, 
   Share2, 
-  FileDown, 
-  Sparkles, 
   Utensils, 
   Droplets, 
   Activity, 
   CheckSquare, 
-  MessageSquareHeart, 
-  Bell 
+  Bell,
+  Sparkles
 } from 'lucide-react';
 import { PlanConfig, DayLog } from '../types';
 import { ScoreBreakdown } from '../utils/calculations';
@@ -25,6 +23,7 @@ import { FastingTimer } from './FastingTimer';
 import { MedicationsTracker } from './MedicationsTracker';
 import { CycleTrackerCard } from './CycleTrackerCard';
 import { getCycleInfo } from '../utils/cycleTracking';
+import { HelpButton } from './FeatureHelpModal';
 
 interface TodayTabProps {
   plan: PlanConfig;
@@ -66,14 +65,14 @@ export const TodayTab: React.FC<TodayTabProps> = ({
         plan.cycleTracking?.showPhaseToClient !== false &&
         cycleInfo &&
         cycleInfo.dayOfCycle !== null && (
-          <div className="flex items-center justify-between px-3.5 py-2 rounded-2xl bg-gradient-to-r from-rose-50/90 via-pink-50/60 to-purple-50/40 dark:from-rose-950/40 dark:via-pink-950/20 dark:to-purple-950/20 border border-rose-200/60 dark:border-rose-900/40 text-xs shadow-2xs">
+          <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-gradient-to-r from-rose-50/90 via-pink-50/60 to-purple-50/40 dark:from-rose-950/40 dark:via-pink-950/20 dark:to-purple-950/20 border border-rose-200/70 dark:border-rose-900/50 text-xs shadow-xs">
             <div className="flex items-center gap-2 font-bold text-rose-900 dark:text-rose-200">
               <span className="text-sm">{cycleInfo.icon}</span>
               <span>
                 اليوم {cycleInfo.dayOfCycle} من الدورة • {cycleInfo.phaseName}
               </span>
             </div>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${cycleInfo.colorClass.badge}`}>
+            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${cycleInfo.colorClass.badge}`}>
               {cycleInfo.isPeriodDay ? 'أيام الحيض 🩸' : cycleInfo.phaseBadge}
             </span>
           </div>
@@ -95,12 +94,12 @@ export const TodayTab: React.FC<TodayTabProps> = ({
 
       {/* 2. Doctor Tips Banner */}
       {isSectionVisible(plan, 'tipsBanner') && plan.tips && plan.tips.length > 0 && (
-        <div className="p-4 sm:p-5 rounded-3xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-300/60 dark:border-amber-700/50 space-y-1.5 shadow-2xs">
-          <div className="flex items-center gap-2 text-xs font-black text-amber-900 dark:text-amber-200">
-            <Lightbulb className="w-4 h-4 text-amber-500 fill-amber-500" />
+        <div className="p-4 sm:p-5 rounded-3xl bg-[#E0922D]/10 dark:bg-[#E0922D]/15 border border-[#E0922D]/30 dark:border-[#E0922D]/30 space-y-1.5 shadow-xs">
+          <div className="flex items-center gap-2 text-xs font-bold text-[#E0922D] dark:text-[#F2C66D]">
+            <Lightbulb className="w-4 h-4 text-[#E0922D] dark:text-[#F2C66D]" />
             <span>توجيه اليوم من د. شيماء:</span>
           </div>
-          <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed font-semibold">
+          <p className="text-xs sm:text-sm text-[#3A124D] dark:text-[#EDE5F5] leading-relaxed font-medium">
             "{plan.tips[Math.abs(currentDate.split('-').reduce((a, b) => a + Number(b), 0)) % plan.tips.length]}"
           </p>
         </div>
@@ -121,6 +120,7 @@ export const TodayTab: React.FC<TodayTabProps> = ({
             <FastingTimer
               plan={plan}
               day={day}
+              currentDate={currentDate}
               onUpdateDay={onUpdateDay}
             />
           )}
@@ -153,18 +153,19 @@ export const TodayTab: React.FC<TodayTabProps> = ({
         <section className="space-y-3.5">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold">
+              <div className="w-8 h-8 rounded-xl bg-[#5B2482]/10 dark:bg-[#5B2482]/30 text-[#5B2482] dark:text-[#D8C4E9] flex items-center justify-center font-bold">
                 <Utensils className="w-4 h-4" />
               </div>
-              <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm sm:text-base">
+              <h3 className="font-bold text-[#3A124D] dark:text-[#EDE5F5] text-sm sm:text-base">
                 الوجبات المقررة اليوم ({plan.meals.length})
               </h3>
+              <HelpButton featureId="mealsList" size="sm" />
             </div>
             <div className="flex items-center gap-3">
               {onOpenNotifications && (
                 <button
                   onClick={onOpenNotifications}
-                  className="text-xs font-black text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 transition-colors flex items-center gap-1 cursor-pointer"
+                  className="text-xs font-semibold text-[#6F5A7D] hover:text-[#E21B6D] dark:text-[#B792D4] dark:hover:text-[#FF4099] transition-colors flex items-center gap-1 cursor-pointer"
                   title="مواعيد الوجبات"
                 >
                   <Bell className="w-3.5 h-3.5" />
@@ -237,7 +238,7 @@ export const TodayTab: React.FC<TodayTabProps> = ({
         <div className="pt-2">
           <button
             onClick={onOpenReportModal}
-            className="w-full py-4 px-6 rounded-3xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm sm:text-base shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2.5 active:scale-98 cursor-pointer"
+            className="w-full py-4 px-6 rounded-3xl bg-[#E21B6D] hover:bg-[#C2135B] text-white font-bold text-sm sm:text-base shadow-lg shadow-[#E21B6D]/25 transition-all flex items-center justify-center gap-2.5 active:scale-[0.99] cursor-pointer"
           >
             <Share2 className="w-5 h-5" />
             <span>إرسال تقرير اليوم لدكتورة شيماء</span>
@@ -247,3 +248,4 @@ export const TodayTab: React.FC<TodayTabProps> = ({
     </div>
   );
 };
+

@@ -2,6 +2,7 @@ import React from 'react';
 import { Stethoscope, MessageSquare, AlertTriangle, Send } from 'lucide-react';
 import { PlanConfig, DayLog } from '../types';
 import { isSectionVisible } from '../utils/storage';
+import { HelpButton } from './FeatureHelpModal';
 
 interface SymptomsAndNotesProps {
   plan: PlanConfig;
@@ -28,19 +29,22 @@ export const SymptomsAndNotes: React.FC<SymptomsAndNotesProps> = ({ plan, day, o
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-5 shadow-xs transition-colors space-y-4">
+    <div className="bg-white dark:bg-[#2D103E] border border-[#D8C4E9]/80 dark:border-[#542870]/80 rounded-3xl p-5 shadow-sm transition-colors space-y-4">
       {/* Symptoms section */}
       {showSymptoms && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 flex items-center justify-center font-bold text-sm">
+            <div className="w-8 h-8 rounded-xl bg-[#E21B6D]/10 dark:bg-[#E21B6D]/20 text-[#E21B6D] dark:text-[#FF4099] flex items-center justify-center font-bold text-sm">
               <Stethoscope className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
-                الأعراض أو الملاحظات الجسدية 🩺
-              </h3>
-              <span className="text-[11px] text-slate-400">
+              <div className="flex items-center gap-1.5">
+                <h3 className="font-bold text-[#3A124D] dark:text-[#EDE5F5] text-sm">
+                  الأعراض أو الملاحظات الجسدية 🩺
+                </h3>
+                <HelpButton featureId="symptomsAndNotes" size="sm" />
+              </div>
+              <span className="text-[11px] text-[#6F5A7D] dark:text-[#B792D4]">
                 حدد أي عَرَض شعرت به لمتابعة الخطة وتعديلها إذا لزم الأمر
               </span>
             </div>
@@ -53,10 +57,10 @@ export const SymptomsAndNotes: React.FC<SymptomsAndNotesProps> = ({ plan, day, o
                 <button
                   key={sym.id}
                   onClick={() => toggleSymptom(sym.id)}
-                  className={`p-2.5 rounded-2xl border text-xs font-semibold transition-all text-center ${
+                  className={`p-2.5 rounded-2xl border text-xs font-semibold transition-all text-center cursor-pointer ${
                     isSelected
-                      ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800 shadow-xs'
-                      : 'bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/80 hover:bg-slate-100'
+                      ? 'bg-[#E21B6D]/10 dark:bg-[#E21B6D]/20 text-[#E21B6D] dark:text-[#FF4099] border-[#E21B6D]/30 shadow-xs'
+                      : 'bg-[#F8F7F9] dark:bg-[#3D1B53]/60 text-[#3A124D] dark:text-[#EDE5F5] border-[#D8C4E9]/60 dark:border-[#542870]/60 hover:bg-[#F1E9F8]'
                   }`}
                 >
                   {isSelected ? '⚠️ ' : ''}
@@ -71,23 +75,23 @@ export const SymptomsAndNotes: React.FC<SymptomsAndNotesProps> = ({ plan, day, o
             value={day.symNotes || ''}
             onChange={(e) => onUpdateDay({ ...day, symNotes: e.target.value })}
             placeholder="تفاصيل إضافية حول الأعراض..."
-            className="w-full text-xs p-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-rose-500 resize-none"
+            className="w-full text-xs p-3 rounded-2xl border border-[#D8C4E9]/70 dark:border-[#542870]/70 bg-[#F8F7F9] dark:bg-[#3D1B53]/60 text-[#3A124D] dark:text-[#EDE5F5] outline-none focus:ring-2 focus:ring-[#E21B6D] resize-none"
           />
         </div>
       )}
 
       {/* Direct Doctor Notes */}
       {showDoctorNotes && (
-        <div className={`${showSymptoms ? 'pt-3 border-t border-slate-100 dark:border-slate-800/80' : ''} space-y-2`}>
+        <div className={`${showSymptoms ? 'pt-3 border-t border-[#D8C4E9]/50 dark:border-[#542870]/50' : ''} space-y-2`}>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 flex items-center justify-center font-bold text-sm">
+            <div className="w-8 h-8 rounded-xl bg-[#0D9488]/10 dark:bg-[#0D9488]/20 text-[#0D9488] dark:text-[#2DD4BF] flex items-center justify-center font-bold text-sm">
               <MessageSquare className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="font-bold text-slate-800 dark:text-slate-100 text-xs">
+              <h4 className="font-bold text-[#3A124D] dark:text-[#EDE5F5] text-xs">
                 ملاحظات واستفسارات لـ د. شيماء 📝
               </h4>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-[#6F5A7D] dark:text-[#B792D4]">
                 تُرفق تلقائياً مع تقرير المتابعة اليومي
               </span>
             </div>
@@ -98,7 +102,7 @@ export const SymptomsAndNotes: React.FC<SymptomsAndNotesProps> = ({ plan, day, o
             value={day.notes || ''}
             onChange={(e) => onUpdateDay({ ...day, notes: e.target.value })}
             placeholder="أدخل أي استفسار أو تفاصيل ترغب بمشاركتها مع د. شيماء..."
-            className="w-full text-xs p-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-500 resize-none leading-relaxed"
+            className="w-full text-xs p-3 rounded-2xl border border-[#D8C4E9]/70 dark:border-[#542870]/70 bg-[#F8F7F9] dark:bg-[#3D1B53]/60 text-[#3A124D] dark:text-[#EDE5F5] outline-none focus:ring-2 focus:ring-[#0D9488] resize-none leading-relaxed"
           />
         </div>
       )}

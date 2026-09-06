@@ -2,6 +2,51 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --color-brand-primary-text: #3A124D;
+  --color-brand-secondary-text: #6F5A7D;
+  --color-brand-bg: #F8F7F9;
+  --color-brand-card: #FFFFFF;
+  --color-brand-muted: #F1E9F8;
+  --color-brand-border: #D8C4E9;
+  --color-brand-hero: #E21B6D;
+  --color-brand-hero-hover: #C91561;
+  --color-brand-secondary: #5B2482;
+  --color-brand-gold: #E0922D;
+  --color-brand-gold-light: #F2C66D;
+  --color-brand-neon: #FF4099;
+}
+
+:root {
+  --app-bg: #F8F7F9;
+  --app-card: #FFFFFF;
+  --app-card-muted: #F1E9F8;
+  --app-border: #D8C4E9;
+  --app-text-primary: #3A124D;
+  --app-text-secondary: #6F5A7D;
+  --app-hero: #E21B6D;
+  --app-hero-hover: #C91561;
+  --app-secondary: #5B2482;
+  --app-gold: #E0922D;
+  --app-gold-light: #F2C66D;
+  --app-gradient: linear-gradient(135deg, #3A124D 0%, #5B2482 50%, #E21B6D 100%);
+}
+
+.dark {
+  --app-bg: #220930;
+  --app-card: #2D103E;
+  --app-card-muted: #3D1B53;
+  --app-border: #542870;
+  --app-text-primary: #EDE5F5;
+  --app-text-secondary: #B792D4;
+  --app-hero: #E21B6D;
+  --app-hero-hover: #FF4099;
+  --app-secondary: #9B45D3;
+  --app-gold: #F2C66D;
+  --app-gold-light: #FFE3A8;
+  --app-gradient: linear-gradient(135deg, #220930 0%, #5B2482 50%, #E21B6D 100%);
+}
+
 @layer base {
   html {
     font-family: 'Cairo', system-ui, -apple-system, sans-serif;
@@ -19,16 +64,54 @@
     font-family: 'Cairo', system-ui, -apple-system, sans-serif;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
-    background-color: #f8fafc;
-    color: #0f172a;
-  }
-
-  html.dark body {
-    background-color: #020617;
-    color: #f8fafc;
+    background-color: var(--app-bg);
+    color: var(--app-text-primary);
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   input, textarea, pre {
     user-select: text;
   }
 }
+
+/* Brand Utility Classes */
+.bg-brand-page {
+  background-color: var(--app-bg);
+}
+
+.bg-brand-surface {
+  background-color: var(--app-card);
+}
+
+.bg-brand-muted {
+  background-color: var(--app-card-muted);
+}
+
+.text-brand-primary {
+  color: var(--app-text-primary);
+}
+
+.text-brand-secondary {
+  color: var(--app-text-secondary);
+}
+
+.text-brand-hero {
+  color: var(--app-hero);
+}
+
+.border-brand-border {
+  border-color: var(--app-border);
+}
+
+.bg-brand-hero {
+  background-color: var(--app-hero);
+}
+
+.bg-brand-hero:hover {
+  background-color: var(--app-hero-hover);
+}
+
+.brand-gradient {
+  background: var(--app-gradient);
+}
+

@@ -1,5 +1,5 @@
 import { CycleTrackingConfig, ClinicalCycleFlag, DayLog } from '../types';
-import { loadDayLog } from './storage';
+import { loadDayLog, getTodayDateString, parseLocalDate } from './storage';
 
 export type CyclePhase = 'menstrual' | 'follicular' | 'ovulation' | 'luteal' | 'delayed_or_uncertain';
 
@@ -75,7 +75,7 @@ export const WEIGHT_FLUCTUATION_NOTE = 'الوزن قد يرتفع 0.5–2 كج�
  */
 export function getCycleInfo(
   config?: CycleTrackingConfig,
-  currentDateStr: string = new Date().toISOString().split('T')[0]
+  currentDateStr: string = getTodayDateString()
 ): CyclePhaseInfo {
   if (!config || !config.enabled || !config.lastPeriodStart) {
     return {
@@ -100,8 +100,8 @@ export function getCycleInfo(
   const cycleLength = config.typicalCycleLength && config.typicalCycleLength >= 20 ? config.typicalCycleLength : 28;
   const periodLength = config.typicalPeriodLength && config.typicalPeriodLength >= 2 ? config.typicalPeriodLength : 5;
 
-  const startDate = new Date(config.lastPeriodStart);
-  const targetDate = new Date(currentDateStr);
+  const startDate = parseLocalDate(config.lastPeriodStart);
+  const targetDate = parseLocalDate(currentDateStr);
   const diffTime = targetDate.getTime() - startDate.getTime();
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
@@ -273,13 +273,12 @@ export function getWeightVsRecentAverage(
     return { average7Days: null, diffFromAverage: null, count: 0 };
   }
 
-  const dateObj = new Date(currentDateStr);
+  const baseDate = parseLocalDate(currentDateStr);
   const weights: number[] = [];
 
   for (let i = 1; i <= 7; i++) {
-    const prevDate = new Date(dateObj);
-    prevDate.setDate(prevDate.getDate() - i);
-    const dStr = prevDate.toISOString().split('T')[0];
+    const prevDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() - i);
+    const dStr = getTodayDateString(prevDate);
     const log = loadDayLog(dStr);
     if (log && log.weight && log.weight > 0) {
       weights.push(log.weight);

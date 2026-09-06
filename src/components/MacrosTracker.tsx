@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Flame, PieChart, Plus, Check } from 'lucide-react';
 import { DayLog, PlanConfig } from '../types';
+import { HelpButton } from './FeatureHelpModal';
 
 interface MacrosTrackerProps {
   plan: PlanConfig;
@@ -31,18 +32,21 @@ export const MacrosTracker: React.FC<MacrosTrackerProps> = ({ plan, day, onUpdat
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-5 shadow-xs transition-colors space-y-3">
+    <div className="bg-white dark:bg-[#2D103E] border border-[#D8C4E9]/80 dark:border-[#542870]/80 rounded-3xl p-5 shadow-sm transition-colors space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-orange-50 dark:bg-orange-950/50 text-orange-600 flex items-center justify-center font-bold text-sm">
+          <div className="w-8 h-8 rounded-xl bg-[#E0922D]/10 dark:bg-[#E0922D]/20 text-[#E0922D] dark:text-[#F2C66D] flex items-center justify-center font-bold text-sm">
             <Flame className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
-              السعرات والماكروز المستهدفة
-            </h3>
-            <span className="text-[11px] text-slate-400">
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-bold text-[#3A124D] dark:text-[#EDE5F5] text-sm">
+                السعرات والماكروز المستهدفة
+              </h3>
+              <HelpButton featureId="macrosTracker" size="sm" />
+            </div>
+            <span className="text-[11px] text-[#6F5A7D] dark:text-[#B792D4]">
               هدف اليوم: {targetCal} سعرة حرارية
             </span>
           </div>
@@ -50,7 +54,7 @@ export const MacrosTracker: React.FC<MacrosTrackerProps> = ({ plan, day, onUpdat
 
         <button
           onClick={() => setShowEdit(!showEdit)}
-          className="text-xs font-bold px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          className="text-xs font-bold px-2.5 py-1 rounded-xl bg-[#F8F7F9] dark:bg-[#3D1B53]/60 text-[#3A124D] dark:text-[#EDE5F5] hover:bg-[#F1E9F8] dark:hover:bg-[#3D1B53] border border-[#D8C4E9]/60 dark:border-[#542870]/60 transition-colors cursor-pointer"
         >
           {showEdit ? 'إغلاق ✕' : 'تعديل الاستهلاك ✏️'}
         </button>
@@ -59,16 +63,16 @@ export const MacrosTracker: React.FC<MacrosTrackerProps> = ({ plan, day, onUpdat
       {/* Main Calorie Progress Bar */}
       <div>
         <div className="flex justify-between items-center text-xs mb-1.5 font-bold">
-          <span className="text-slate-700 dark:text-slate-300">
+          <span className="text-[#3A124D] dark:text-[#EDE5F5]">
             السعرات: {currentCal} / {targetCal} ك.كالوري
           </span>
-          <span className="text-orange-600 dark:text-orange-400">
+          <span className="text-[#E0922D] dark:text-[#F2C66D]">
             {calPercent}%
           </span>
         </div>
-        <div className="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200/60 dark:border-slate-700/60">
+        <div className="w-full bg-[#F1E9F8] dark:bg-[#3D1B53] h-3 rounded-full overflow-hidden p-0.5 border border-[#D8C4E9]/50 dark:border-[#542870]/50">
           <div
-            className="h-full bg-gradient-to-r from-orange-400 to-amber-500 rounded-full transition-all duration-500"
+            className="h-full bg-gradient-to-r from-[#E0922D] via-[#E21B6D] to-[#5B2482] rounded-full transition-all duration-500"
             style={{ width: `${calPercent}%` }}
           />
         </div>
@@ -77,90 +81,90 @@ export const MacrosTracker: React.FC<MacrosTrackerProps> = ({ plan, day, onUpdat
       {/* 3 Macros Columns (Protein, Carbs, Fats) */}
       <div className="grid grid-cols-3 gap-2.5 pt-1">
         {/* Protein */}
-        <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
-          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 block">
+        <div className="bg-[#F8F7F9] dark:bg-[#3D1B53]/50 p-2.5 rounded-2xl border border-[#D8C4E9]/50 dark:border-[#542870]/50 text-center">
+          <span className="text-[10px] font-bold text-[#0D9488] dark:text-[#2DD4BF] block">
             🥩 بروتين
           </span>
-          <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100 block my-0.5">
+          <span className="text-xs font-extrabold text-[#3A124D] dark:text-[#EDE5F5] block my-0.5">
             {currentProt} / {targetProt} جم
           </span>
-          <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-1">
-            <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${protPercent}%` }} />
+          <div className="w-full bg-[#E5D7F2] dark:bg-[#542870] h-1.5 rounded-full overflow-hidden mt-1">
+            <div className="bg-[#0D9488] h-full rounded-full" style={{ width: `${protPercent}%` }} />
           </div>
         </div>
 
         {/* Carbs */}
-        <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
-          <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 block">
+        <div className="bg-[#F8F7F9] dark:bg-[#3D1B53]/50 p-2.5 rounded-2xl border border-[#D8C4E9]/50 dark:border-[#542870]/50 text-center">
+          <span className="text-[10px] font-bold text-[#0284C7] dark:text-[#38BDF8] block">
             🌾 نشويات
           </span>
-          <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100 block my-0.5">
+          <span className="text-xs font-extrabold text-[#3A124D] dark:text-[#EDE5F5] block my-0.5">
             {currentCarbs} / {targetCarbs} جم
           </span>
-          <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-1">
-            <div className="bg-blue-500 h-full rounded-full" style={{ width: `${carbsPercent}%` }} />
+          <div className="w-full bg-[#E5D7F2] dark:bg-[#542870] h-1.5 rounded-full overflow-hidden mt-1">
+            <div className="bg-[#0284C7] h-full rounded-full" style={{ width: `${carbsPercent}%` }} />
           </div>
         </div>
 
         {/* Fats */}
-        <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
-          <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block">
+        <div className="bg-[#F8F7F9] dark:bg-[#3D1B53]/50 p-2.5 rounded-2xl border border-[#D8C4E9]/50 dark:border-[#542870]/50 text-center">
+          <span className="text-[10px] font-bold text-[#E0922D] dark:text-[#F2C66D] block">
             🥑 دهون صحية
           </span>
-          <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100 block my-0.5">
+          <span className="text-xs font-extrabold text-[#3A124D] dark:text-[#EDE5F5] block my-0.5">
             {currentFats} / {targetFats} جم
           </span>
-          <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-1">
-            <div className="bg-amber-500 h-full rounded-full" style={{ width: `${fatsPercent}%` }} />
+          <div className="w-full bg-[#E5D7F2] dark:bg-[#542870] h-1.5 rounded-full overflow-hidden mt-1">
+            <div className="bg-[#E0922D] h-full rounded-full" style={{ width: `${fatsPercent}%` }} />
           </div>
         </div>
       </div>
 
       {/* Manual Quick Intake Input Form */}
       {showEdit && (
-        <div className="p-3.5 rounded-2xl bg-orange-50/50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900/50 space-y-2.5 animate-in slide-in-from-top duration-150">
-          <span className="text-xs font-bold text-orange-900 dark:text-orange-200 block">
+        <div className="p-3.5 rounded-2xl bg-[#E0922D]/10 dark:bg-[#E0922D]/15 border border-[#E0922D]/30 space-y-2.5 animate-in slide-in-from-top duration-150">
+          <span className="text-xs font-bold text-[#E0922D] dark:text-[#F2C66D] block">
             سجّل إجمالي أكلك الفعلي للنهاردة:
           </span>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 mb-0.5">السعرات (ك.كالوري)</label>
+              <label className="block text-[10px] font-bold text-[#6F5A7D] dark:text-[#B792D4] mb-0.5">السعرات (ك.كالوري)</label>
               <input
                 type="number"
                 value={day.consumedCalories || ''}
                 onChange={(e) => handleSaveIntake({ consumedCalories: parseInt(e.target.value, 10) || 0 })}
                 placeholder="2000"
-                className="w-full text-xs font-bold p-2 rounded-xl border bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+                className="w-full text-xs font-bold p-2 rounded-xl border border-[#D8C4E9]/70 dark:border-[#542870]/70 bg-white dark:bg-[#2D103E] text-[#3A124D] dark:text-[#EDE5F5]"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 mb-0.5">بروتين (جم)</label>
+              <label className="block text-[10px] font-bold text-[#6F5A7D] dark:text-[#B792D4] mb-0.5">بروتين (جم)</label>
               <input
                 type="number"
                 value={day.consumedProtein || ''}
                 onChange={(e) => handleSaveIntake({ consumedProtein: parseInt(e.target.value, 10) || 0 })}
                 placeholder="140"
-                className="w-full text-xs font-bold p-2 rounded-xl border bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+                className="w-full text-xs font-bold p-2 rounded-xl border border-[#D8C4E9]/70 dark:border-[#542870]/70 bg-white dark:bg-[#2D103E] text-[#3A124D] dark:text-[#EDE5F5]"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 mb-0.5">نشويات (جم)</label>
+              <label className="block text-[10px] font-bold text-[#6F5A7D] dark:text-[#B792D4] mb-0.5">نشويات (جم)</label>
               <input
                 type="number"
                 value={day.consumedCarbs || ''}
                 onChange={(e) => handleSaveIntake({ consumedCarbs: parseInt(e.target.value, 10) || 0 })}
                 placeholder="180"
-                className="w-full text-xs font-bold p-2 rounded-xl border bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+                className="w-full text-xs font-bold p-2 rounded-xl border border-[#D8C4E9]/70 dark:border-[#542870]/70 bg-white dark:bg-[#2D103E] text-[#3A124D] dark:text-[#EDE5F5]"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 mb-0.5">دهون (جم)</label>
+              <label className="block text-[10px] font-bold text-[#6F5A7D] dark:text-[#B792D4] mb-0.5">دهون (جم)</label>
               <input
                 type="number"
                 value={day.consumedFats || ''}
                 onChange={(e) => handleSaveIntake({ consumedFats: parseInt(e.target.value, 10) || 0 })}
                 placeholder="55"
-                className="w-full text-xs font-bold p-2 rounded-xl border bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+                className="w-full text-xs font-bold p-2 rounded-xl border border-[#D8C4E9]/70 dark:border-[#542870]/70 bg-white dark:bg-[#2D103E] text-[#3A124D] dark:text-[#EDE5F5]"
               />
             </div>
           </div>

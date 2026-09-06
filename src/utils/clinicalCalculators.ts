@@ -30,6 +30,10 @@ export const PAL_FACTORS: ActivityOption[] = [
 /**
  * 1. BMR & TDEE Calculations
  */
+export function calculateKholoudBMR(p: BMRParams): number {
+  return Math.round(9.99 * p.weightKg + 6.25 * p.heightCm - 4.92 * p.ageYears);
+}
+
 export function calculateMifflinStJeor(p: BMRParams): number {
   const base = 10 * p.weightKg + 6.25 * p.heightCm - 5 * p.ageYears;
   return Math.round(p.gender === 'male' ? base + 5 : base - 161);
@@ -54,6 +58,7 @@ export function calculateCunningham(weightKg: number, bodyFatPercentage: number)
 }
 
 export interface BMRComparisonResult {
+  kholoud: number;
   mifflin: number;
   harrisBenedict: number;
   katchMcArdle: number | null;
@@ -61,6 +66,7 @@ export interface BMRComparisonResult {
 }
 
 export function calculateAllBMRFormulas(p: BMRParams): BMRComparisonResult {
+  const kholoud = calculateKholoudBMR(p);
   const mifflin = calculateMifflinStJeor(p);
   const harris = calculateHarrisBenedictRevised(p);
   const katch = typeof p.bodyFatPercentage === 'number' && p.bodyFatPercentage > 0
@@ -71,6 +77,7 @@ export function calculateAllBMRFormulas(p: BMRParams): BMRComparisonResult {
     : null;
 
   return {
+    kholoud,
     mifflin,
     harrisBenedict: harris,
     katchMcArdle: katch,
@@ -82,7 +89,7 @@ export function calculateAllBMRFormulas(p: BMRParams): BMRComparisonResult {
  * 2. Body Composition & Anthropometry
  */
 
-// US Navy Tape Method Body Fat Calculator
+// US Navy Tape Method Body Fat Calculator (Standard Hodgdon & Beckett Metric Formula)
 export function calculateUSNavyBodyFat(
   gender: Gender,
   heightCm: number,
@@ -95,17 +102,23 @@ export function calculateUSNavyBodyFat(
   if (gender === 'male') {
     const diff = waistCm - neckCm;
     if (diff <= 0) return null;
-    const logVal = Math.log10(diff);
+    const logDiff = Math.log10(diff);
     const logHeight = Math.log10(heightCm);
-    const bf = 86.01 * logVal - 70.041 * logHeight + 36.76;
+    // Standard Navy Tape Metric Formula for Men
+    const denominator = 1.0324 - 0.19077 * logDiff + 0.15456 * logHeight;
+    if (denominator <= 0) return null;
+    const bf = 495 / denominator - 450;
     return Math.max(2, Math.min(60, Math.round(bf * 10) / 10));
   } else {
     if (!hipCm || hipCm <= 0) return null;
     const sum = waistCm + hipCm - neckCm;
     if (sum <= 0) return null;
-    const logVal = Math.log10(sum);
+    const logSum = Math.log10(sum);
     const logHeight = Math.log10(heightCm);
-    const bf = 163.205 * logVal - 97.684 * logHeight - 78.387;
+    // Standard Navy Tape Metric Formula for Women
+    const denominator = 1.29579 - 0.35004 * logSum + 0.22100 * logHeight;
+    if (denominator <= 0) return null;
+    const bf = 495 / denominator - 450;
     return Math.max(4, Math.min(65, Math.round(bf * 10) / 10));
   }
 }

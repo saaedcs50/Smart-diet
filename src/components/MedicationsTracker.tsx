@@ -106,23 +106,23 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs transition-colors space-y-4">
+    <div className="bg-white dark:bg-[#2D103E] border border-[#D8C4E9]/80 dark:border-[#542870]/80 rounded-3xl p-4 sm:p-5 shadow-sm transition-colors space-y-4">
       {/* Header with Title and Independent Adherence Score */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+          <div className="w-9 h-9 rounded-2xl bg-[#5B2482]/10 dark:bg-[#5B2482]/25 text-[#5B2482] dark:text-[#D8C4E9] flex items-center justify-center font-bold">
             <Pill className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm sm:text-base">
+              <h3 className="font-bold text-[#3A124D] dark:text-[#EDE5F5] text-sm sm:text-base">
                 أدوية اليوم والالتزام الدوائي 💊
               </h3>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#5B2482]/10 dark:bg-[#5B2482]/20 text-[#5B2482] dark:text-[#D8C4E9] border border-[#5B2482]/20">
                 مستقل عن نقاط الدايت
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] text-[#6F5A7D] dark:text-[#B792D4]">
               سجّل جرعاتك اليومية في مواعيدها لتثبيت الالتزام مع الأخصائي
             </p>
           </div>
@@ -131,18 +131,18 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
         {/* Adherence Mini Badge */}
         {adherence.totalScheduledNonPRN > 0 && (
           <div className="text-left shrink-0">
-            <div className="flex items-center gap-1 font-black text-xs text-blue-600 dark:text-blue-400 justify-end">
+            <div className="flex items-center gap-1 font-bold text-xs text-[#5B2482] dark:text-[#D8C4E9] justify-end">
               <span>{adherence.totalTaken}/{adherence.totalScheduledNonPRN}</span>
-              <span className="text-[10px] text-slate-400">جرعة</span>
+              <span className="text-[10px] text-[#6F5A7D] dark:text-[#B792D4]">جرعة</span>
             </div>
-            <div className="w-18 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 mt-1 overflow-hidden">
+            <div className="w-18 bg-[#F1E9F8] dark:bg-[#3D1B53] rounded-full h-1.5 mt-1 overflow-hidden">
               <div
                 className={`h-full transition-all duration-300 ${
                   adherence.adherencePercentage === 100
-                    ? 'bg-emerald-500'
+                    ? 'bg-[#0D9488]'
                     : adherence.adherencePercentage >= 50
-                    ? 'bg-blue-500'
-                    : 'bg-amber-500'
+                    ? 'bg-[#5B2482]'
+                    : 'bg-[#E0922D]'
                 }`}
                 style={{ width: `${adherence.adherencePercentage}%` }}
               />
@@ -167,12 +167,12 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
               key={dose.key}
               className={`rounded-2xl border transition-all ${
                 isTaken
-                  ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800/60 shadow-2xs'
+                  ? 'bg-[#0D9488]/10 dark:bg-[#0D9488]/15 border-[#0D9488]/30 dark:border-[#0D9488]/30 shadow-xs'
                   : isSkipped
-                  ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/60'
+                  ? 'bg-[#E21B6D]/10 dark:bg-[#E21B6D]/15 border-[#E21B6D]/30 dark:border-[#E21B6D]/30'
                   : isPostponed
-                  ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/60'
-                  : 'bg-slate-50/70 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 hover:border-slate-300'
+                  ? 'bg-[#E0922D]/10 dark:bg-[#E0922D]/15 border-[#E0922D]/30 dark:border-[#E0922D]/30'
+                  : 'bg-[#F8F7F9] dark:bg-[#3D1B53]/60 border-[#D8C4E9]/60 dark:border-[#542870]/60 hover:border-[#5B2482]/30'
               }`}
             >
               {/* Main Dose Row */}
@@ -180,28 +180,28 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
                 {/* Info side */}
                 <div className="space-y-1 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-black text-slate-800 dark:text-slate-100 text-xs sm:text-sm">
+                    <span className="font-bold text-[#3A124D] dark:text-[#EDE5F5] text-xs sm:text-sm">
                       {dose.medicationName}
                     </span>
-                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300">
+                    <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-[#5B2482]/10 dark:bg-[#5B2482]/20 text-[#5B2482] dark:text-[#D8C4E9]">
                       {dose.dose}
                     </span>
                     {dose.isPRN && (
-                      <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300">
+                      <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-[#E21B6D]/10 dark:bg-[#E21B6D]/20 text-[#E21B6D] dark:text-[#FF4099]">
                         عند اللزوم
                       </span>
                     )}
                   </div>
 
                   {/* Slot & Food hint */}
-                  <div className="flex items-center gap-2 flex-wrap text-[11px] text-slate-600 dark:text-slate-300 font-medium">
-                    <span className="flex items-center gap-1 text-slate-700 dark:text-slate-200 font-bold">
-                      <Clock className="w-3 h-3 text-blue-500" />
+                  <div className="flex items-center gap-2 flex-wrap text-[11px] text-[#6F5A7D] dark:text-[#B792D4] font-medium">
+                    <span className="flex items-center gap-1 text-[#3A124D] dark:text-[#EDE5F5] font-bold">
+                      <Clock className="w-3 h-3 text-[#5B2482] dark:text-[#D8C4E9]" />
                       {dose.slotLabel}
                     </span>
 
                     {withFoodInfo && withFoodInfo.hint && (
-                      <span className="text-slate-400 dark:text-slate-500">•</span>
+                      <span className="text-[#D8C4E9] dark:text-[#542870]">•</span>
                     )}
 
                     {withFoodInfo && withFoodInfo.hint && (
@@ -218,10 +218,10 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSetDoseStatus(dose.key, 'taken')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                       isTaken
-                        ? 'bg-emerald-600 text-white shadow-xs scale-102'
-                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-emerald-50'
+                        ? 'bg-[#0D9488] text-white shadow-xs scale-102'
+                        : 'bg-white dark:bg-[#2D103E] text-[#3A124D] dark:text-[#EDE5F5] border border-[#D8C4E9]/70 dark:border-[#542870]/70 hover:bg-[#0D9488]/10'
                     }`}
                   >
                     <Check className="w-3.5 h-3.5" />
@@ -234,8 +234,8 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
                     onClick={() => handleSetDoseStatus(dose.key, 'skipped')}
                     className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                       isSkipped
-                        ? 'bg-rose-600 text-white shadow-xs'
-                        : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-rose-50'
+                        ? 'bg-[#E21B6D] text-white shadow-xs'
+                        : 'bg-white dark:bg-[#2D103E] text-[#6F5A7D] dark:text-[#B792D4] border border-[#D8C4E9]/70 dark:border-[#542870]/70 hover:bg-[#E21B6D]/10'
                     }`}
                     title="لم آخذ الجرعة"
                   >
@@ -249,8 +249,8 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
                     onClick={() => handleSetDoseStatus(dose.key, 'postponed')}
                     className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                       isPostponed
-                        ? 'bg-amber-600 text-white shadow-xs'
-                        : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-amber-50'
+                        ? 'bg-[#E0922D] text-white shadow-xs'
+                        : 'bg-white dark:bg-[#2D103E] text-[#6F5A7D] dark:text-[#B792D4] border border-[#D8C4E9]/70 dark:border-[#542870]/70 hover:bg-[#E0922D]/10'
                     }`}
                     title="تأجيل الجرعة لوقت لاحق"
                   >
@@ -261,15 +261,15 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
               </div>
 
               {/* Bottom Expandable Bar: Interactions / Notes */}
-              <div className="px-3.5 py-2 border-t border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between text-[11px]">
-                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 min-w-0">
+              <div className="px-3.5 py-2 border-t border-[#D8C4E9]/50 dark:border-[#542870]/50 flex items-center justify-between text-[11px]">
+                <div className="flex items-center gap-2 text-[#6F5A7D] dark:text-[#B792D4] min-w-0">
                   {entry?.time && (
-                    <span className="font-bold text-slate-600 dark:text-slate-300">
+                    <span className="font-bold text-[#3A124D] dark:text-[#EDE5F5]">
                       🕒 سُجلت {entry.time}
                     </span>
                   )}
                   {entry?.note && (
-                    <span className="text-blue-600 dark:text-blue-400 truncate max-w-[200px]">
+                    <span className="text-[#5B2482] dark:text-[#D8C4E9] truncate max-w-[200px]">
                       💬 {entry.note}
                     </span>
                   )}
@@ -280,7 +280,7 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
                   <button
                     type="button"
                     onClick={() => handleOpenNoteEditor(dose.key, entry?.note)}
-                    className="text-[11px] font-bold text-slate-500 hover:text-blue-600 flex items-center gap-0.5 cursor-pointer"
+                    className="text-[11px] font-bold text-[#6F5A7D] dark:text-[#B792D4] hover:text-[#5B2482] flex items-center gap-0.5 cursor-pointer"
                   >
                     <MessageSquare className="w-3 h-3" />
                     <span>{entry?.note ? 'تعديل الملاحظة' : 'إضافة ملاحظة'}</span>
@@ -291,7 +291,7 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
                     <button
                       type="button"
                       onClick={() => setExpandedNotesKey(showNotes ? null : dose.key)}
-                      className="text-[11px] font-bold text-blue-600 dark:text-blue-400 flex items-center gap-0.5 cursor-pointer"
+                      className="text-[11px] font-bold text-[#5B2482] dark:text-[#D8C4E9] flex items-center gap-0.5 cursor-pointer"
                     >
                       <span>{showNotes ? 'طي التفاصيل' : 'عرض التنبيهات'}</span>
                       {showNotes ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
@@ -302,26 +302,26 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
 
               {/* Note Editor inline */}
               {editingNoteKey === dose.key && (
-                <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 space-y-2 animate-in fade-in duration-100">
+                <div className="p-3 bg-white dark:bg-[#2D103E] border-t border-[#D8C4E9]/70 dark:border-[#542870]/70 space-y-2 animate-in fade-in duration-100">
                   <input
                     type="text"
                     placeholder="اكتب ملاحظتك (مثال: شعرت بغثيان خفيف، أو تأخرت ساعة...)"
                     value={tempNoteText}
                     onChange={(e) => setTempNoteText(e.target.value)}
-                    className="w-full text-xs p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full text-xs p-2 rounded-xl border border-[#D8C4E9]/70 dark:border-[#542870]/70 bg-[#F8F7F9] dark:bg-[#3D1B53]/60 text-[#3A124D] dark:text-[#EDE5F5] outline-none focus:ring-2 focus:ring-[#5B2482]"
                   />
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => setEditingNoteKey(null)}
-                      className="px-3 py-1 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-100"
+                      className="px-3 py-1 rounded-lg text-xs font-bold text-[#6F5A7D] hover:bg-[#F1E9F8] cursor-pointer"
                     >
                       إلغاء
                     </button>
                     <button
                       type="button"
                       onClick={() => handleSaveDoseNote(dose.key)}
-                      className="px-4 py-1 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700"
+                      className="px-4 py-1 rounded-lg text-xs font-bold bg-[#5B2482] text-white hover:bg-[#4A1D6B] cursor-pointer"
                     >
                       حفظ الملاحظة
                     </button>
@@ -331,10 +331,10 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
 
               {/* Expanded Card Details */}
               {showNotes && (
-                <div className="p-3 rounded-b-2xl bg-blue-50/50 dark:bg-slate-900/80 border-t border-blue-100 dark:border-slate-700/80 space-y-2 text-xs animate-in fade-in duration-150">
+                <div className="p-3 rounded-b-2xl bg-[#5B2482]/10 dark:bg-[#3D1B53]/50 border-t border-[#D8C4E9]/50 dark:border-[#542870]/50 space-y-2 text-xs animate-in fade-in duration-150">
                   {withFoodInfo && withFoodInfo.hint && (
-                    <div className="text-[11px] text-slate-700 dark:text-slate-300 flex items-start gap-1.5 font-medium">
-                      <Info className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+                    <div className="text-[11px] text-[#3A124D] dark:text-[#EDE5F5] flex items-start gap-1.5 font-medium">
+                      <Info className="w-3.5 h-3.5 text-[#5B2482] dark:text-[#D8C4E9] shrink-0 mt-0.5" />
                       <span>
                         <strong>طريقة التناول:</strong> {withFoodInfo.hint}
                       </span>
@@ -342,8 +342,8 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
                   )}
 
                   {dose.foodInteractionNote && (
-                    <div className="p-2 rounded-xl bg-amber-100/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-[11px] text-amber-900 dark:text-amber-200 flex items-start gap-1.5 font-medium">
-                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="p-2 rounded-xl bg-[#E0922D]/10 dark:bg-[#E0922D]/20 border border-[#E0922D]/30 text-[11px] text-[#E0922D] dark:text-[#F2C66D] flex items-start gap-1.5 font-medium">
+                      <AlertCircle className="w-3.5 h-3.5 text-[#E0922D] shrink-0 mt-0.5" />
                       <span>
                         <strong>تنبيه تفاعل الطعام:</strong> {dose.foodInteractionNote}
                       </span>
@@ -351,7 +351,7 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
                   )}
 
                   {dose.coachNotes && (
-                    <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+                    <p className="text-[11px] text-[#6F5A7D] dark:text-[#B792D4] font-medium">
                       💡 <strong>توجيه الأخصائي:</strong> {dose.coachNotes}
                     </p>
                   )}

@@ -227,6 +227,13 @@ export interface BodyMeasurements {
   neck: number | null;
 }
 
+export interface ActiveFastingSession {
+  isActive: boolean;
+  startTime: number | null; // timestamp in ms
+  targetHours?: number;
+  startDateStr?: string; // YYYY-MM-DD of the day fasting started
+}
+
 export interface DayLog {
   water: number;
   waterLogs: number;

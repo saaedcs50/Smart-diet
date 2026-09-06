@@ -195,16 +195,16 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-rose-100 dark:border-rose-950/60 shadow-sm overflow-hidden transition-all">
+    <div className="bg-white dark:bg-[#2D103E] rounded-3xl border border-[#D8C4E9]/80 dark:border-[#542870]/80 shadow-sm overflow-hidden transition-all">
       {/* Header */}
-      <div className="p-4 bg-gradient-to-r from-rose-50/80 via-pink-50/40 to-white dark:from-rose-950/30 dark:via-pink-950/10 dark:to-slate-900 border-b border-rose-100/70 dark:border-rose-950/40 flex items-center justify-between">
+      <div className="p-4 bg-[#F8F7F9] dark:bg-[#3D1B53]/50 border-b border-[#D8C4E9]/60 dark:border-[#542870]/60 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-rose-100 dark:bg-rose-900/60 flex items-center justify-center text-rose-600 dark:text-rose-400 font-bold shadow-sm">
+          <div className="w-8 h-8 rounded-xl bg-[#E21B6D]/10 dark:bg-[#E21B6D]/20 flex items-center justify-center text-[#E21B6D] dark:text-[#FF4099] font-bold shadow-xs">
             🌸
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
+              <h3 className="font-bold text-[#3A124D] dark:text-[#EDE5F5] text-sm">
                 دورة اليوم والأعراض
               </h3>
               {cycleConfig.showPhaseToClient !== false && cycleInfo.dayOfCycle !== null && (
@@ -215,7 +215,7 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] text-[#6F5A7D] dark:text-[#B792D4]">
               متابعة الطور الهرموني، الأعراض، ومستوى الطاقة
             </p>
           </div>
@@ -225,7 +225,7 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
           <button
             type="button"
             onClick={() => setShowSettingsModal(true)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-rose-100/50 dark:hover:bg-rose-950/40 transition-colors text-xs flex items-center gap-1"
+            className="p-1.5 rounded-lg text-[#6F5A7D] hover:text-[#3A124D] dark:hover:text-[#EDE5F5] hover:bg-[#F1E9F8] dark:hover:bg-[#3D1B53] transition-colors text-xs flex items-center gap-1 cursor-pointer"
             title="تعديل تواريخ وإعدادات الدورة"
           >
             <Settings className="w-3.5 h-3.5" />
@@ -234,7 +234,7 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
           <button
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-rose-100/50 dark:hover:bg-rose-950/40 transition-colors"
+            className="p-1.5 rounded-lg text-[#6F5A7D] hover:text-[#3A124D] dark:hover:text-[#EDE5F5] hover:bg-[#F1E9F8] dark:hover:bg-[#3D1B53] transition-colors cursor-pointer"
           >
             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -245,25 +245,25 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
       {isExpanded && (
         <div className="p-4 space-y-4">
           {/* Phase Banner & Quick Info */}
-          <div className={`p-3 rounded-xl border ${cycleInfo.colorClass.border} ${cycleInfo.colorClass.bg}`}>
+          <div className={`p-3 rounded-2xl border ${cycleInfo.colorClass.border} ${cycleInfo.colorClass.bg}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-xs">
                   <span className="text-sm">{cycleInfo.icon}</span>
                   <span className={cycleInfo.colorClass.text}>{cycleInfo.phaseName}</span>
                   {cycleInfo.dayOfCycle && (
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">
+                    <span className="text-[11px] text-[#6F5A7D] dark:text-[#B792D4] font-normal">
                       (اليوم {cycleInfo.dayOfCycle} من الدورة)
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                <p className="text-xs text-[#3A124D] dark:text-[#EDE5F5] leading-relaxed">
                   {cycleInfo.description}
                 </p>
-                <div className="pt-1 flex items-start gap-1.5 text-[11px] text-slate-700 dark:text-slate-300 font-medium">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                <div className="pt-1 flex items-start gap-1.5 text-[11px] text-[#3A124D] dark:text-[#EDE5F5] font-medium">
+                  <Sparkles className="w-3.5 h-3.5 text-[#E0922D] shrink-0 mt-0.5" />
                   <span>
-                    <strong className="text-slate-900 dark:text-slate-100">إرشاد غذائي: </strong>
+                    <strong className="text-[#3A124D] dark:text-[#EDE5F5]">إرشاد غذائي: </strong>
                     {cycleInfo.nutritionTip}
                   </span>
                 </div>
@@ -272,14 +272,14 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
           </div>
 
           {/* Quick Period Start Action */}
-          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-dashed border-rose-200 dark:border-rose-900/60">
+          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-2xl bg-[#E21B6D]/5 dark:bg-[#E21B6D]/15 border border-dashed border-[#E21B6D]/30 dark:border-[#E21B6D]/30">
             <div className="flex items-center gap-2">
-              <Droplets className="w-4 h-4 text-rose-500 shrink-0" />
+              <Droplets className="w-4 h-4 text-[#E21B6D] shrink-0" />
               <div className="text-xs">
-                <span className="font-bold text-slate-800 dark:text-slate-200">
+                <span className="font-bold text-[#3A124D] dark:text-[#EDE5F5]">
                   {cycleLog.periodStartedToday ? '✅ تم تسجيل بداية الحيض اليوم' : 'هل بدأ الحيض اليوم؟'}
                 </span>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                <p className="text-[10px] text-[#6F5A7D] dark:text-[#B792D4]">
                   {cycleConfig.lastPeriodStart
                     ? `آخر بداية مسجلة: ${cycleConfig.lastPeriodStart}`
                     : 'سجّلي أول يوم لإعادة احتساب الطور بدقة'}
@@ -290,10 +290,10 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
               type="button"
               onClick={handlePeriodStartedToday}
               disabled={cycleLog.periodStartedToday}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer ${
                 cycleLog.periodStartedToday
-                  ? 'bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 cursor-default'
-                  : 'bg-rose-600 hover:bg-rose-700 text-white active:scale-95'
+                  ? 'bg-[#E21B6D]/15 text-[#E21B6D] dark:text-[#FF4099] cursor-default'
+                  : 'bg-[#E21B6D] hover:bg-[#C2135B] text-white active:scale-95'
               }`}
             >
               <span>🩸</span>
@@ -304,12 +304,12 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
           {/* Energy Scale (1 to 5) */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-amber-500" />
+              <label className="text-xs font-bold text-[#3A124D] dark:text-[#EDE5F5] flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-[#E0922D]" />
                 <span>مستوى الطاقة والنشاط اليوم:</span>
               </label>
               {cycleLog.energy && (
-                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                <span className="text-[11px] font-bold text-[#6F5A7D] dark:text-[#B792D4]">
                   {energyLabels[cycleLog.energy]?.label} ({cycleLog.energy}/5)
                 </span>
               )}
@@ -322,10 +322,10 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
                     key={lvl}
                     type="button"
                     onClick={() => handleSetEnergy(lvl)}
-                    className={`py-2 px-1 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 border transition-all ${
+                    className={`py-2 px-1 rounded-2xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 border transition-all cursor-pointer ${
                       isSelected
-                        ? 'bg-amber-500 text-white border-amber-600 shadow-sm scale-[1.02]'
-                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                        ? 'bg-[#E0922D] text-white border-[#E0922D] shadow-xs scale-102'
+                        : 'bg-[#F8F7F9] dark:bg-[#3D1B53]/60 text-[#3A124D] dark:text-[#EDE5F5] border-[#D8C4E9]/60 dark:border-[#542870]/60 hover:bg-[#F1E9F8]'
                     }`}
                   >
                     <span className="text-xs">{energyLabels[lvl]?.icon}</span>
@@ -338,8 +338,8 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
 
           {/* Symptoms Chips */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <Heart className="w-3.5 h-3.5 text-rose-500" />
+            <label className="text-xs font-bold text-[#3A124D] dark:text-[#EDE5F5] flex items-center gap-1.5">
+              <Heart className="w-3.5 h-3.5 text-[#E21B6D]" />
               <span>أعراض الدورة والتقلبات اليومية (اختياري):</span>
             </label>
             <div className="flex flex-wrap gap-1.5">
@@ -350,10 +350,10 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
                     key={sym.id}
                     type="button"
                     onClick={() => handleToggleSymptom(sym.id)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition-all ${
+                    className={`px-2.5 py-1 rounded-xl text-xs font-medium border flex items-center gap-1.5 transition-all cursor-pointer ${
                       isChecked
-                        ? 'bg-rose-500 text-white border-rose-600 shadow-sm'
-                        : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-800'
+                        ? 'bg-[#E21B6D] text-white border-[#E21B6D] shadow-xs'
+                        : 'bg-[#F8F7F9] dark:bg-[#3D1B53]/60 text-[#3A124D] dark:text-[#EDE5F5] border-[#D8C4E9]/60 dark:border-[#542870]/60 hover:border-[#E21B6D]/40'
                     }`}
                   >
                     <span>{sym.icon}</span>
@@ -372,13 +372,13 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
               value={cycleLog.note || ''}
               onChange={(e) => handleSetNote(e.target.value)}
               placeholder="ملاحظة قصيرة عن اليوم (مثال: انتفاخ شديد بالمساء، نوم متقطع...)"
-              className="w-full text-xs px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-rose-400 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+              className="w-full text-xs px-3 py-2 rounded-2xl bg-[#F8F7F9] dark:bg-[#3D1B53]/60 border border-[#D8C4E9]/70 dark:border-[#542870]/70 focus:outline-none focus:ring-2 focus:ring-[#E21B6D] text-[#3A124D] dark:text-[#EDE5F5] placeholder:text-[#6F5A7D]/60"
             />
           </div>
 
           {/* Clinical Flags Note (If set by coach) */}
           {cycleConfig.clinicalFlags && cycleConfig.clinicalFlags.length > 0 && (
-            <div className="p-2.5 rounded-xl bg-teal-50/50 dark:bg-teal-950/20 border border-teal-200/60 dark:border-teal-900/40 text-[11px] text-teal-800 dark:text-teal-300 space-y-1">
+            <div className="p-2.5 rounded-2xl bg-[#0D9488]/10 dark:bg-[#0D9488]/20 border border-[#0D9488]/30 text-[11px] text-[#0D9488] dark:text-[#2DD4BF] space-y-1">
               <span className="font-bold flex items-center gap-1">
                 <Info className="w-3.5 h-3.5" />
                 <span>سياق سريري معتمد من الأخصائية:</span>
@@ -389,7 +389,7 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
                   return (
                     <span
                       key={flag}
-                      className="px-2 py-0.5 rounded-md bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-200 text-[10px] font-bold"
+                      className="px-2 py-0.5 rounded-lg bg-[#0D9488]/15 dark:bg-[#0D9488]/30 text-[#0D9488] dark:text-[#2DD4BF] text-[10px] font-bold"
                     >
                       {meta?.label || flag}
                     </span>
@@ -400,7 +400,7 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
           )}
 
           {/* Fixed Disclaimer */}
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed text-center">
+          <p className="text-[10px] text-[#6F5A7D] dark:text-[#B792D4] leading-relaxed text-center">
             🔒 {CYCLE_DISCLAIMER}
           </p>
         </div>
@@ -408,17 +408,17 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
 
       {/* Client Settings Modal */}
       {showSettingsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-sm w-full p-4 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-              <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-[#2D103E] rounded-3xl border border-[#D8C4E9] dark:border-[#542870] shadow-xl max-w-sm w-full p-5 space-y-4 animate-in fade-in">
+            <div className="flex items-center justify-between pb-2 border-b border-[#D8C4E9]/50 dark:border-[#542870]/50">
+              <h4 className="font-bold text-sm text-[#3A124D] dark:text-[#EDE5F5] flex items-center gap-2">
                 <span>🌸</span>
                 <span>إعدادات تتبع الدورة</span>
               </h4>
               <button
                 type="button"
                 onClick={() => setShowSettingsModal(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs"
+                className="text-[#6F5A7D] hover:text-[#3A124D] dark:hover:text-[#EDE5F5] text-xs cursor-pointer"
               >
                 ✕
               </button>
@@ -426,7 +426,7 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block font-bold text-[#3A124D] dark:text-[#EDE5F5] mb-1">
                   تاريخ بداية آخر حيض:
                 </label>
                 <div className="relative">
@@ -434,15 +434,15 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
                     type="date"
                     value={tempStartDate}
                     onChange={(e) => setTempStartDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                    className="w-full px-3 py-2 rounded-xl bg-[#F8F7F9] dark:bg-[#3D1B53]/60 border border-[#D8C4E9] dark:border-[#542870] text-[#3A124D] dark:text-[#EDE5F5] focus:outline-none focus:ring-2 focus:ring-[#E21B6D]"
                   />
-                  <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+                  <Calendar className="w-4 h-4 text-[#6F5A7D] absolute left-3 top-2.5 pointer-events-none" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-bold text-[#3A124D] dark:text-[#EDE5F5] mb-1">
                     طول الدورة المعتاد (يوم):
                   </label>
                   <input
@@ -451,12 +451,12 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
                     max={45}
                     value={tempCycleLength}
                     onChange={(e) => setTempCycleLength(parseInt(e.target.value) || 28)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                    className="w-full px-3 py-2 rounded-xl bg-[#F8F7F9] dark:bg-[#3D1B53]/60 border border-[#D8C4E9] dark:border-[#542870] text-[#3A124D] dark:text-[#EDE5F5] focus:outline-none focus:ring-2 focus:ring-[#E21B6D]"
                   />
-                  <span className="text-[10px] text-slate-400">افتراضي 28 (21–45)</span>
+                  <span className="text-[10px] text-[#6F5A7D] dark:text-[#B792D4]">افتراضي 28 (21–45)</span>
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block font-bold text-[#3A124D] dark:text-[#EDE5F5] mb-1">
                     أيام الحيض المعتادة:
                   </label>
                   <input
@@ -465,14 +465,14 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
                     max={10}
                     value={tempPeriodLength}
                     onChange={(e) => setTempPeriodLength(parseInt(e.target.value) || 5)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                    className="w-full px-3 py-2 rounded-xl bg-[#F8F7F9] dark:bg-[#3D1B53]/60 border border-[#D8C4E9] dark:border-[#542870] text-[#3A124D] dark:text-[#EDE5F5] focus:outline-none focus:ring-2 focus:ring-[#E21B6D]"
                   />
-                  <span className="text-[10px] text-slate-400">افتراضي 5 (2–10)</span>
+                  <span className="text-[10px] text-[#6F5A7D] dark:text-[#B792D4]">افتراضي 5 (2–10)</span>
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block font-bold text-[#3A124D] dark:text-[#EDE5F5] mb-1">
                   انتظام الدورة:
                 </label>
                 <div className="grid grid-cols-3 gap-1.5">
@@ -487,10 +487,10 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
                       key={opt.id}
                       type="button"
                       onClick={() => setTempRegularity(opt.id)}
-                      className={`py-1.5 px-2 rounded-lg text-xs font-medium border transition-all ${
+                      className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                         tempRegularity === opt.id
-                          ? 'bg-rose-600 text-white border-rose-700'
-                          : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                          ? 'bg-[#E21B6D] text-white border-[#E21B6D]'
+                          : 'bg-[#F8F7F9] dark:bg-[#3D1B53]/60 text-[#3A124D] dark:text-[#EDE5F5] border-[#D8C4E9] dark:border-[#542870]'
                       }`}
                     >
                       {opt.label}
@@ -500,18 +500,18 @@ export const CycleTrackerCard: React.FC<CycleTrackerCardProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#D8C4E9]/50 dark:border-[#542870]/50">
               <button
                 type="button"
                 onClick={() => setShowSettingsModal(false)}
-                className="px-3 py-1.5 rounded-xl text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="px-3 py-1.5 rounded-xl text-xs text-[#6F5A7D] hover:bg-[#F1E9F8] dark:hover:bg-[#3D1B53] cursor-pointer"
               >
                 إلغاء
               </button>
               <button
                 type="button"
                 onClick={handleSaveSettings}
-                className="px-4 py-1.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm"
+                className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[#E21B6D] hover:bg-[#C2135B] text-white shadow-sm cursor-pointer"
               >
                 حفظ الإعدادات
               </button>

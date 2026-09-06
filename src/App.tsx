@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ActiveTab, DayLog, PlanConfig, PhotoRecord } from './types';
 import { 
   getTodayDateString, 
@@ -32,9 +32,11 @@ import { PhotoCompareModal } from './components/PhotoCompareModal';
 import { InstallGuideModal } from './components/InstallGuideModal';
 import { VisualReportCard } from './components/VisualReportCard';
 import { NotificationSettingsModal } from './components/NotificationSettingsModal';
-import { createCoachSession, destroyCoachSession } from './utils/geminiCoach';
+import { OnboardingModal } from './components/OnboardingModal';
+import { FeatureHelpProvider } from './components/FeatureHelpModal';
 
 export default function App() {
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
   const [activeTab, setActiveTab] = useState<ActiveTab>('today');
   const [currentDate, setCurrentDate] = useState<string>(getTodayDateString);
   const [plan, setPlan] = useState<PlanConfig>(loadPlanFromStorage);
@@ -48,9 +50,38 @@ export default function App() {
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
-  // Ephemeral in-memory coach session (never saved to localStorage)
-  const [coachSessionUnlocked, setCoachSessionUnlocked] = useState<boolean>(false);
-  const [coachToken, setCoachToken] = useState<string | null>(null);
+  // Persistent in-session coach state
+  const [coachSessionUnlocked, setCoachSessionUnlocked] = useState<boolean>(() => {
+    return sessionStorage.getItem('smartdiet_coach_unlocked') === 'true';
+  });
+
+  // Handle SPA path routing
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  const navigateTo = (path: string) => {
+    window.history.pushState({}, '', path);
+    setCurrentPath(path);
+  };
+
+  const handleUnlockCoachSession = async (enteredPin: string) => {
+    if (enteredPin === '32184') {
+      setCoachSessionUnlocked(true);
+      sessionStorage.setItem('smartdiet_coach_unlocked', 'true');
+      return true;
+    }
+    return false;
+  };
+
+  const handleLogoutCoachSession = async () => {
+    setCoachSessionUnlocked(false);
+    sessionStorage.removeItem('smartdiet_coach_unlocked');
+  };
 
   // Modals state
   const [showPinModal, setShowPinModal] = useState(false);
@@ -61,6 +92,9 @@ export default function App() {
   const [showCompareModal, setShowCompareModal] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
+    return localStorage.getItem('smartdiet_onboarding_seen') !== 'true';
+  });
   const [comparePhotos, setComparePhotos] = useState<PhotoRecord[]>([]);
 
   // Toast state
@@ -71,7 +105,7 @@ export default function App() {
     registerServiceWorker();
 
     // Check if any reminders were missed while app was closed
-    const missed = getMissedRemindersOnBoot(notificationSettings);
+    const missed = getMissedRemindersOnBoot(notificationSettings, plan, day);
     if (missed.length > 0) {
       setTimeout(() => {
         showNotification(`تنبيهات فاتت خلال غيابك 📌: ${missed.join(' | ')}`);
@@ -105,12 +139,12 @@ export default function App() {
   // Periodic Reminder Runner (runs every 30 seconds)
   useEffect(() => {
     // Run immediately once
-    checkAndTriggerReminders(notificationSettings);
+    checkAndTriggerReminders(notificationSettings, plan, day);
     const intervalId = window.setInterval(() => {
-      checkAndTriggerReminders(notificationSettings);
+      checkAndTriggerReminders(notificationSettings, plan, day);
     }, 30000);
     return () => clearInterval(intervalId);
-  }, [notificationSettings]);
+  }, [notificationSettings, plan, day]);
 
   // Load day whenever currentDate changes
   useEffect(() => {
@@ -181,32 +215,65 @@ export default function App() {
     );
   };
 
-  const score = calculateDayScore(plan, day);
-  const streak = calculateStreak(currentDate, plan);
+  const score = useMemo(() => calculateDayScore(plan, day), [plan, day]);
+  const streak = useMemo(() => calculateStreak(currentDate, plan), [currentDate, plan, day]);
+
+  const handleCloseOnboarding = () => {
+    localStorage.setItem('smartdiet_onboarding_seen', 'true');
+    setShowOnboarding(false);
+  };
+
+  if (currentPath.startsWith('/coach')) {
+    return (
+      <FeatureHelpProvider>
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors selection:bg-emerald-500 selection:text-white font-sans antialiased">
+          {toastMessage && (
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 dark:bg-slate-100/95 text-white dark:text-slate-900 text-xs font-bold px-4 py-2.5 rounded-2xl shadow-xl backdrop-blur-md animate-in slide-in-from-top duration-200 text-center max-w-[90%] border border-slate-700 dark:border-slate-300">
+              {toastMessage}
+            </div>
+          )}
+
+          <CoachModal
+            plan={plan}
+            coachSessionUnlocked={coachSessionUnlocked}
+            onSavePlan={handleSavePlan}
+            onClose={() => navigateTo('/')}
+            onNotify={showNotification}
+            isPageMode={true}
+            onNavigateClient={() => navigateTo('/')}
+            onLogoutCoach={handleLogoutCoachSession}
+            onUnlockSession={handleUnlockCoachSession}
+          />
+        </div>
+      </FeatureHelpProvider>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors selection:bg-emerald-500 selection:text-white font-sans antialiased pb-20">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 dark:bg-slate-100/95 text-white dark:text-slate-900 text-xs font-bold px-4 py-2.5 rounded-2xl shadow-xl backdrop-blur-md animate-in slide-in-from-top duration-200 text-center max-w-[90%] border border-slate-700 dark:border-slate-300">
-          {toastMessage}
-        </div>
-      )}
+    <FeatureHelpProvider>
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors selection:bg-emerald-500 selection:text-white font-sans antialiased pb-20">
+        {/* Toast Notification */}
+        {toastMessage && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 dark:bg-slate-100/95 text-white dark:text-slate-900 text-xs font-bold px-4 py-2.5 rounded-2xl shadow-xl backdrop-blur-md animate-in slide-in-from-top duration-200 text-center max-w-[90%] border border-slate-700 dark:border-slate-300">
+            {toastMessage}
+          </div>
+        )}
 
-      {/* Main Top Header */}
-      <Navbar
-        plan={plan}
-        currentDate={currentDate}
-        onDateChange={setCurrentDate}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-        onOpenCoachPin={() => setShowPinModal(true)}
-        onOpenInstallGuide={() => setShowInstallGuide(true)}
-        onOpenNotifications={() => setShowNotificationsModal(true)}
-        onOpenImportModal={() => setShowImportModal(true)}
-        notificationsEnabled={notificationSettings.enabled}
-        streak={streak}
-      />
+        {/* Main Top Header */}
+        <Navbar
+          plan={plan}
+          currentDate={currentDate}
+          onDateChange={setCurrentDate}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+          onOpenCoachPin={() => navigateTo('/coach')}
+          onOpenInstallGuide={() => setShowInstallGuide(true)}
+          onOpenNotifications={() => setShowNotificationsModal(true)}
+          onOpenImportModal={() => setShowImportModal(true)}
+          onOpenOnboarding={() => setShowOnboarding(true)}
+          notificationsEnabled={notificationSettings.enabled}
+          streak={streak}
+        />
 
       {/* Main Content Area */}
       <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-5 pb-24">
@@ -260,38 +327,6 @@ export default function App() {
       <BottomNav plan={plan} activeTab={activeTab} onChangeTab={setActiveTab} />
 
       {/* Modals */}
-      {showPinModal && (
-        <PinModal
-          correctPin={plan.adminPin || '1234'}
-          onSuccess={async () => {
-            setShowPinModal(false);
-            const res = await createCoachSession();
-            setCoachSessionUnlocked(true);
-            if (res.ok && res.token) {
-              setCoachToken(res.token);
-            }
-            setShowCoachModal(true);
-          }}
-          onClose={() => setShowPinModal(false)}
-        />
-      )}
-
-      {showCoachModal && (
-        <CoachModal
-          plan={plan}
-          coachSessionUnlocked={coachSessionUnlocked}
-          coachToken={coachToken}
-          onSavePlan={handleSavePlan}
-          onClose={async () => {
-            await destroyCoachSession(coachToken);
-            setCoachSessionUnlocked(false);
-            setCoachToken(null);
-            setShowCoachModal(false);
-          }}
-          onNotify={showNotification}
-        />
-      )}
-
       {showImportModal && (
         <ImportModal
           onImportPlan={handleImportPlanData}
@@ -340,6 +375,14 @@ export default function App() {
           onSave={handleSaveNotifications}
         />
       )}
+
+      {/* Onboarding Flow Modal */}
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={handleCloseOnboarding}
+        plan={plan}
+      />
     </div>
+  </FeatureHelpProvider>
   );
 }

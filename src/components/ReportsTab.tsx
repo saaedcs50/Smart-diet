@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   BarChart3, 
   Share2, 
@@ -17,9 +17,10 @@ import {
   calculateEffectiveWaterGoal,
   formatDurationString
 } from '../utils/calculations';
-import { loadDayLog, getAllStoredDayLogs } from '../utils/storage';
+import { loadDayLog, getAllStoredDayLogs, parseLocalDate, getTodayDateString } from '../utils/storage';
 import { getCycleInfo, CLINICAL_FLAGS_META, CYCLE_SYMPTOMS, WEIGHT_FLUCTUATION_NOTE } from '../utils/cycleTracking';
 import { formatLabSummaryForWhatsApp } from '../utils/labTracking';
+import { HelpButton } from './FeatureHelpModal';
 
 interface ReportsTabProps {
   plan: PlanConfig;
@@ -120,32 +121,35 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   return (
     <div className="space-y-4 pb-12 animate-in fade-in duration-150">
       {/* 1. Summary Header Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-5 shadow-xs transition-colors space-y-4">
+      <div className="bg-white dark:bg-[#2D103E] border border-purple-100 dark:border-purple-900/40 rounded-3xl p-5 shadow-xs transition-colors space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center font-bold text-sm">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-brand-secondary/10 text-brand-secondary dark:text-purple-300 flex items-center justify-center font-bold text-sm">
               <BarChart3 className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
-                ملخص وإحصائيات التطور 📊
-              </h3>
-              <span className="text-[11px] text-slate-400">
+              <div className="flex items-center gap-1.5">
+                <h3 className="font-bold text-brand-text dark:text-purple-100 text-sm">
+                  ملخص وإحصائيات التطور
+                </h3>
+                <HelpButton featureId="whatsappReport" size="sm" />
+              </div>
+              <span className="text-[11px] text-brand-secondary-text dark:text-purple-300/70">
                 متابعة نتائج التزامك ووزنك عبر الأيام
               </span>
             </div>
           </div>
 
           {/* Time range selector */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+          <div className="flex items-center gap-1 bg-[#F8F7F9] dark:bg-[#220930] p-1 rounded-xl border border-purple-100/60 dark:border-purple-900/30">
             {[7, 14, 30].map((days) => (
               <button
                 key={days}
                 onClick={() => setRangeDays(days)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   rangeDays === days
-                    ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'bg-white dark:bg-[#2D103E] text-brand-text dark:text-purple-100 shadow-xs'
+                    : 'text-brand-secondary-text dark:text-purple-300/70 hover:text-brand-text'
                 }`}
               >
                 {days} أيام
@@ -156,46 +160,46 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
 
         {/* 4 Stat Metric Badges */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
-          <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
-            <span className="text-[10px] font-bold text-slate-400 block mb-0.5">
-              🎯 متوسط الالتزام
+          <div className="bg-[#F8F7F9] dark:bg-[#220930]/80 p-3 rounded-2xl border border-purple-100 dark:border-purple-900/40 text-center">
+            <span className="text-[10px] font-bold text-brand-secondary-text dark:text-purple-300 block mb-0.5">
+              متوسط الالتزام
             </span>
-            <span className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">
+            <span className="text-base font-extrabold text-brand-hero dark:text-pink-400">
               {avgScore}%
             </span>
           </div>
 
-          <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
-            <span className="text-[10px] font-bold text-slate-400 block mb-0.5">
-              ⚖️ متوسط الوزن
+          <div className="bg-[#F8F7F9] dark:bg-[#220930]/80 p-3 rounded-2xl border border-purple-100 dark:border-purple-900/40 text-center">
+            <span className="text-[10px] font-bold text-brand-secondary-text dark:text-purple-300 block mb-0.5">
+              متوسط الوزن
             </span>
-            <span className="text-base font-extrabold text-slate-800 dark:text-slate-100">
+            <span className="text-base font-extrabold text-brand-text dark:text-purple-100">
               {avgWeight ? `${avgWeight} كجم` : '—'}
             </span>
           </div>
 
-          <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
-            <span className="text-[10px] font-bold text-slate-400 block mb-0.5">
-              📉 صافي التغير
+          <div className="bg-[#F8F7F9] dark:bg-[#220930]/80 p-3 rounded-2xl border border-purple-100 dark:border-purple-900/40 text-center">
+            <span className="text-[10px] font-bold text-brand-secondary-text dark:text-purple-300 block mb-0.5">
+              صافي التغير
             </span>
             <span
               className={`text-base font-extrabold ${
                 netWeightChange !== null && netWeightChange < 0
                   ? 'text-emerald-600 dark:text-emerald-400'
                   : netWeightChange !== null && netWeightChange > 0
-                  ? 'text-amber-600 dark:text-amber-400'
-                  : 'text-slate-800 dark:text-slate-100'
+                  ? 'text-brand-gold dark:text-brand-gold-dark'
+                  : 'text-brand-text dark:text-purple-100'
               }`}
             >
               {netWeightChange !== null ? `${netWeightChange > 0 ? `+${netWeightChange}` : netWeightChange} كجم` : '—'}
             </span>
           </div>
 
-          <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
-            <span className="text-[10px] font-bold text-slate-400 block mb-0.5">
-              👑 أفضل يوم
+          <div className="bg-[#F8F7F9] dark:bg-[#220930]/80 p-3 rounded-2xl border border-purple-100 dark:border-purple-900/40 text-center">
+            <span className="text-[10px] font-bold text-brand-secondary-text dark:text-purple-300 block mb-0.5">
+              أفضل يوم
             </span>
-            <span className="text-xs font-extrabold text-amber-600 dark:text-amber-400 block truncate">
+            <span className="text-xs font-extrabold text-brand-secondary dark:text-purple-300 block truncate">
               {bestDay ? `${bestDay.score}% (${bestDay.date.slice(5)})` : '—'}
             </span>
           </div>
@@ -203,9 +207,9 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
       </div>
 
       {/* 2. Visual Bar Trend Graph */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-5 shadow-xs transition-colors space-y-4">
+      <div className="bg-white dark:bg-[#2D103E] border border-purple-100 dark:border-purple-900/40 rounded-3xl p-5 shadow-xs transition-colors space-y-4">
         <div className="flex items-center justify-between">
-          <h4 className="font-bold text-slate-800 dark:text-slate-100 text-xs">
+          <h4 className="font-bold text-brand-text dark:text-purple-100 text-xs">
             منحنى المتابعة اليومية
           </h4>
 
@@ -214,16 +218,16 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
             {[
               { id: 'score', label: 'الالتزام %' },
               { id: 'weight', label: 'الوزن' },
-              { id: 'water', label: 'المية' },
+              { id: 'water', label: 'الماء' },
               { id: 'exercise', label: 'الرياضة' },
             ].map((m) => (
               <button
                 key={m.id}
                 onClick={() => setChartMetric(m.id as any)}
-                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                   chartMetric === m.id
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    ? 'bg-brand-hero text-white shadow-xs'
+                    : 'bg-[#F8F7F9] dark:bg-[#220930] text-brand-secondary-text dark:text-purple-300 hover:text-brand-text'
                 }`}
               >
                 {m.label}
@@ -233,7 +237,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         </div>
 
         {/* CSS Flex Bar Chart */}
-        <div className="h-44 flex items-end justify-between gap-1.5 pt-4 pb-2 border-b border-slate-100 dark:border-slate-800 overflow-x-auto">
+        <div className="h-44 flex items-end justify-between gap-1.5 pt-4 pb-2 border-b border-purple-100 dark:border-purple-900/40 overflow-x-auto">
           {historyData.map((pt, idx) => {
             let val = 0;
             let displayVal = '';
@@ -259,30 +263,30 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
 
             return (
               <div key={idx} className="flex-1 min-w-[28px] flex flex-col items-center gap-1.5 h-full justify-end group">
-                <span className="text-[9px] font-bold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-[9px] font-bold text-brand-secondary-text opacity-0 group-hover:opacity-100 transition-opacity">
                   {displayVal}
                 </span>
 
-                <div className="w-full max-w-[24px] bg-slate-100 dark:bg-slate-800 rounded-t-xl overflow-hidden h-32 flex items-end">
+                <div className="w-full max-w-[24px] bg-[#F8F7F9] dark:bg-[#220930] rounded-t-xl overflow-hidden h-32 flex items-end border border-purple-100/60 dark:border-purple-900/30">
                   <div
                     className={`w-full rounded-t-xl transition-all duration-500 ${
                       chartMetric === 'score'
                         ? val >= 80
-                          ? 'bg-emerald-500'
+                          ? 'bg-brand-hero'
                           : val >= 50
-                          ? 'bg-amber-500'
-                          : 'bg-rose-500'
+                          ? 'bg-brand-gold'
+                          : 'bg-rose-400'
                         : chartMetric === 'water'
                         ? 'bg-blue-500'
                         : chartMetric === 'exercise'
-                        ? 'bg-purple-500'
+                        ? 'bg-brand-secondary'
                         : 'bg-teal-500'
                     }`}
                     style={{ height: `${Math.max(6, barHeightPercent)}%` }}
                   />
                 </div>
 
-                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400">
+                <span className="text-[9px] font-bold text-brand-secondary-text dark:text-purple-300">
                   {pt.date.slice(8)}
                 </span>
               </div>
@@ -291,7 +295,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         </div>
       </div>
 
-      {/* 2.5 Menstrual Cycle & Hormone Phase Review (Coach & Client insight) */}
+      {/* 2.5 Menstrual Cycle & Hormone Phase Review */}
       {plan.cycleTracking?.enabled && (() => {
         const cycleInfo = getCycleInfo(plan.cycleTracking, currentDate);
         // Collect symptoms recorded in this range
@@ -304,18 +308,18 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
         const recordedSymptomsList = Object.entries(recordedSymptomsMap).sort((a, b) => b[1] - a[1]);
 
         return (
-          <div className="bg-white dark:bg-slate-900 border border-rose-200/80 dark:border-rose-900/50 rounded-3xl p-5 shadow-xs transition-colors space-y-3">
+          <div className="bg-white dark:bg-[#2D103E] border border-pink-100 dark:border-pink-900/40 rounded-3xl p-5 shadow-xs transition-colors space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold text-sm">
-                  🌸
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-brand-hero/10 text-brand-hero flex items-center justify-center font-bold text-sm">
+                  <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
-                    تقرير الدورة الشهرية والسياق الهرموني 🌸
+                  <h3 className="font-bold text-brand-text dark:text-purple-100 text-sm">
+                    تقرير الدورة الشهرية والسياق الهرموني
                   </h3>
                   {cycleInfo.dayOfCycle !== null && (
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11px] text-brand-secondary-text dark:text-purple-300">
                       اليوم {cycleInfo.dayOfCycle} من الدورة • طور: {cycleInfo.phaseName}
                     </span>
                   )}
@@ -335,9 +339,9 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
                   return (
                     <span
                       key={flag}
-                      className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
+                      className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-pink-50 dark:bg-pink-950/60 text-pink-800 dark:text-pink-300 border border-pink-200 dark:border-pink-800"
                     >
-                      🏷️ {meta?.label || flag}
+                      {meta?.label || flag}
                     </span>
                   );
                 })}
@@ -346,8 +350,8 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
 
             {/* Symptoms in this period */}
             {recordedSymptomsList.length > 0 ? (
-              <div className="p-3 rounded-2xl bg-rose-50/50 dark:bg-slate-800/60 border border-rose-100 dark:border-rose-900/30 space-y-1.5">
-                <span className="text-xs font-bold text-rose-900 dark:text-rose-200 block">
+              <div className="p-3 rounded-2xl bg-pink-50/50 dark:bg-pink-950/20 border border-pink-100 dark:border-pink-900/30 space-y-1.5">
+                <span className="text-xs font-bold text-pink-900 dark:text-pink-200 block">
                   الأعراض المسجلة خلال هذه الفترة ({rangeDays} أيام):
                 </span>
                 <div className="flex flex-wrap gap-1.5">
@@ -356,7 +360,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
                     return (
                       <span
                         key={symId}
-                        className="px-2.5 py-1 rounded-xl text-xs font-medium bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-rose-200/60 dark:border-rose-900/40"
+                        className="px-2.5 py-1 rounded-xl text-xs font-medium bg-white dark:bg-[#2D103E] text-brand-text dark:text-purple-200 border border-pink-200/60 dark:border-pink-900/40"
                       >
                         {sym?.icon} {sym?.label || symId} ({count}x)
                       </span>
@@ -365,16 +369,16 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-brand-secondary-text dark:text-purple-300">
                 لم يتم تسجيل أي أعراض دورة خاصة خلال هذه الفترة.
               </p>
             )}
 
             {/* Coach notes if any */}
             {plan.cycleTracking.coachNotes && (
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-200 leading-relaxed">
-                <span className="font-bold text-slate-900 dark:text-slate-100 block mb-1">
-                  💡 إرشادات الأخصائية للهرمونات والتغذية:
+              <div className="p-3 rounded-2xl bg-[#F8F7F9] dark:bg-[#220930]/70 border border-purple-100 dark:border-purple-900/40 text-xs text-brand-text dark:text-purple-200 leading-relaxed">
+                <span className="font-bold text-brand-text dark:text-purple-100 block mb-1">
+                  إرشادات الأخصائية للهرمونات والتغذية:
                 </span>
                 {plan.cycleTracking.coachNotes}
               </div>
@@ -390,12 +394,12 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
           className="py-3 px-3 rounded-2xl bg-[#25D366] hover:bg-[#1EBE5D] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
         >
           <Share2 className="w-4 h-4" />
-          إرسال ملخص واتساب
+          إرسال ملخص عبر واتساب
         </button>
 
         <button
           onClick={handleCopyWeeklySummary}
-          className="py-3 px-3 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+          className="py-3 px-3 rounded-2xl bg-white dark:bg-[#2D103E] hover:bg-[#F8F7F9] dark:hover:bg-[#3A124D] text-brand-text dark:text-purple-100 border border-purple-100 dark:border-purple-900/40 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
         >
           <Copy className="w-4 h-4" />
           نسخ الملخص

@@ -55,50 +55,69 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
   const [activeTab, setActiveTab] = useState<'bmr_tdee' | 'body_comp' | 'macros_fluid' | 'timeline'>('bmr_tdee');
 
   // Core Physical Parameters
-  const [weight, setWeight] = useState<number>(initialWeight || 80);
-  const [height, setHeight] = useState<number>(initialHeight || 175);
-  const [age, setAge] = useState<number>(initialAge || 28);
+  const [weight, setWeight] = useState<number | ''>(initialWeight || 80);
+  const [height, setHeight] = useState<number | ''>(initialHeight || 175);
+  const [age, setAge] = useState<number | ''>(initialAge || 28);
   const [gender, setGender] = useState<Gender>(initialGender || 'male');
   const [activity, setActivity] = useState<ActivityLevel>('light');
-  const [bodyFat, setBodyFat] = useState<number>(18);
+  const [bodyFat, setBodyFat] = useState<number | ''>(18);
 
   // Selected Formula Choice for TDEE
   const [selectedFormula, setSelectedFormula] = useState<'mifflin' | 'harris' | 'katch' | 'cunningham'>('mifflin');
 
   // Goal & Calorie Deficit/Surplus Adjustment
   const [goalPreset, setGoalPreset] = useState<'cut_aggressive' | 'cut_moderate' | 'maintain' | 'bulk_clean' | 'custom'>('cut_moderate');
-  const [customKcalDelta, setCustomKcalDelta] = useState<number>(-450);
+  const [customKcalDelta, setCustomKcalDelta] = useState<number | ''>(-450);
 
   // Body Comp Tape Measurement inputs (US Navy Method)
-  const [neckCm, setNeckCm] = useState<number>(39);
-  const [waistCm, setWaistCm] = useState<number>(86);
-  const [hipCm, setHipCm] = useState<number>(98);
+  const [neckCm, setNeckCm] = useState<number | ''>(39);
+  const [waistCm, setWaistCm] = useState<number | ''>(86);
+  const [hipCm, setHipCm] = useState<number | ''>(98);
 
   // Macros Calculation Mode
   const [macroMode, setMacroMode] = useState<'percent' | 'g_per_kg'>('g_per_kg');
 
   // Percent Mode Values
-  const [carbPercent, setCarbPercent] = useState<number>(45);
-  const [proteinPercent, setProteinPercent] = useState<number>(30);
-  const [fatPercent, setFatPercent] = useState<number>(25);
+  const [carbPercent, setCarbPercent] = useState<number | ''>(45);
+  const [proteinPercent, setProteinPercent] = useState<number | ''>(30);
+  const [fatPercent, setFatPercent] = useState<number | ''>(25);
 
   // Grams/Kg Mode Values
-  const [proteinGPerKg, setProteinGPerKg] = useState<number>(2.0); // 2g/kg
-  const [fatGPerKg, setFatGPerKg] = useState<number>(0.9); // 0.9g/kg
+  const [proteinGPerKg, setProteinGPerKg] = useState<number | ''>(2.0); // 2g/kg
+  const [fatGPerKg, setFatGPerKg] = useState<number | ''>(0.9); // 0.9g/kg
 
   // Hydration extra activity
-  const [workoutHoursPerWeek, setWorkoutHoursPerWeek] = useState<number>(4);
+  const [workoutHoursPerWeek, setWorkoutHoursPerWeek] = useState<number | ''>(4);
 
   // Timeline target weight
-  const [targetWeightKg, setTargetWeightKg] = useState<number>(weight - 8 > 40 ? weight - 8 : 70);
+  const [targetWeightKg, setTargetWeightKg] = useState<number | ''>(
+    (initialWeight || 80) - 8 > 40 ? (initialWeight || 80) - 8 : 70
+  );
+
+  // Numeric values for calculation functions
+  const numWeight = typeof weight === 'number' ? weight : 0;
+  const numHeight = typeof height === 'number' ? height : 0;
+  const numAge = typeof age === 'number' ? age : 0;
+  const numBodyFat = typeof bodyFat === 'number' ? bodyFat : undefined;
+  const numNeckCm = typeof neckCm === 'number' ? neckCm : 0;
+  const numWaistCm = typeof waistCm === 'number' ? waistCm : 0;
+  const numHipCm = typeof hipCm === 'number' ? hipCm : undefined;
+  const numCarbPercent = typeof carbPercent === 'number' ? carbPercent : 0;
+  const numProteinPercent = typeof proteinPercent === 'number' ? proteinPercent : 0;
+  const numFatPercent = typeof fatPercent === 'number' ? fatPercent : 0;
+  const numProteinGPerKg = typeof proteinGPerKg === 'number' ? proteinGPerKg : 0;
+  const numFatGPerKg = typeof fatGPerKg === 'number' ? fatGPerKg : 0;
+  const numWorkoutHours = typeof workoutHoursPerWeek === 'number' ? workoutHoursPerWeek : 0;
+  const numTargetWeight = typeof targetWeightKg === 'number' ? targetWeightKg : 0;
+  const numCustomDelta = typeof customKcalDelta === 'number' ? customKcalDelta : 0;
 
   // Calculated BMR formulas comparison
   const bmrResults = calculateAllBMRFormulas({
-    weightKg: weight,
-    heightCm: height,
-    ageYears: age,
+    weightKg: numWeight || 70,
+    heightCm: numHeight || 170,
+    ageYears: numAge || 25,
     gender,
-    bodyFatPercentage: bodyFat,
+    bodyFatPercentage: numBodyFat,
   });
 
   // Selected BMR Value
@@ -117,7 +136,7 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
   else if (goalPreset === 'cut_aggressive') deficitSurplusKcal = -700;
   else if (goalPreset === 'bulk_clean') deficitSurplusKcal = 300;
   else if (goalPreset === 'maintain') deficitSurplusKcal = 0;
-  else if (goalPreset === 'custom') deficitSurplusKcal = customKcalDelta;
+  else if (goalPreset === 'custom') deficitSurplusKcal = numCustomDelta;
 
   const targetCalories = Math.max(1200, tdee + deficitSurplusKcal);
 
@@ -127,33 +146,33 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
   let finalCarbGrams = 0;
 
   if (macroMode === 'percent') {
-    finalProteinGrams = Math.round((targetCalories * (proteinPercent / 100)) / 4);
-    finalFatGrams = Math.round((targetCalories * (fatPercent / 100)) / 9);
-    finalCarbGrams = Math.round((targetCalories * (carbPercent / 100)) / 4);
+    finalProteinGrams = Math.round((targetCalories * (numProteinPercent / 100)) / 4);
+    finalFatGrams = Math.round((targetCalories * (numFatPercent / 100)) / 9);
+    finalCarbGrams = Math.round((targetCalories * (numCarbPercent / 100)) / 4);
   } else {
     // Grams per Kg
-    finalProteinGrams = Math.round(weight * proteinGPerKg);
-    finalFatGrams = Math.round(weight * fatGPerKg);
+    finalProteinGrams = Math.round((numWeight || 70) * numProteinGPerKg);
+    finalFatGrams = Math.round((numWeight || 70) * numFatGPerKg);
     const calsFromProtFat = finalProteinGrams * 4 + finalFatGrams * 9;
     const remainingCarbCals = Math.max(200, targetCalories - calsFromProtFat);
     finalCarbGrams = Math.round(remainingCarbCals / 4);
   }
 
   // Anthropometry Calculations
-  const calculatedNavyBf = calculateUSNavyBodyFat(gender, height, neckCm, waistCm, hipCm);
-  const ibwResults = calculateIBW(height, gender);
-  const abwResult = calculateABW(weight, ibwResults.devine);
-  const bmiResult = calculateBMI(weight, height);
-  const whtrResult = calculateWHtR(waistCm, height);
+  const calculatedNavyBf = calculateUSNavyBodyFat(gender, numHeight, numNeckCm, numWaistCm, numHipCm);
+  const ibwResults = calculateIBW(numHeight || 170, gender);
+  const abwResult = calculateABW(numWeight || 70, ibwResults.devine);
+  const bmiResult = calculateBMI(numWeight || null, numHeight || null);
+  const whtrResult = calculateWHtR(numWaistCm || null, numHeight || null);
 
   // Fluid Calculation
-  const fluidResult = calculateDailyFluid(weight, workoutHoursPerWeek);
+  const fluidResult = calculateDailyFluid(numWeight || 70, numWorkoutHours);
 
   // Peri-workout Carbs
-  const periWorkoutInfo = calculatePeriWorkoutNutrition(weight);
+  const periWorkoutInfo = calculatePeriWorkoutNutrition(numWeight || 70);
 
   // Timeline Calculation
-  const timelineResult = calculateTargetTimeline(weight, targetWeightKg, deficitSurplusKcal);
+  const timelineResult = calculateTargetTimeline(numWeight || 70, numTargetWeight || 60, deficitSurplusKcal);
 
   const handleApplyNavyBfToAll = () => {
     if (calculatedNavyBf) {
@@ -228,7 +247,9 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
             <input
               type="number"
               value={weight}
-              onChange={(e) => setWeight(Math.max(30, parseFloat(e.target.value) || 0))}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => setWeight(e.target.value === '' ? '' : parseFloat(e.target.value))}
+              placeholder="0"
               className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-white font-black text-center focus:border-blue-500 focus:outline-none"
             />
           </div>
@@ -238,7 +259,9 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
             <input
               type="number"
               value={height}
-              onChange={(e) => setHeight(Math.max(100, parseFloat(e.target.value) || 0))}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => setHeight(e.target.value === '' ? '' : parseFloat(e.target.value))}
+              placeholder="0"
               className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-white font-black text-center focus:border-blue-500 focus:outline-none"
             />
           </div>
@@ -248,7 +271,9 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
             <input
               type="number"
               value={age}
-              onChange={(e) => setAge(Math.max(10, parseInt(e.target.value) || 0))}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => setAge(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+              placeholder="0"
               className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-white font-black text-center focus:border-blue-500 focus:outline-none"
             />
           </div>
@@ -258,7 +283,9 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
             <input
               type="number"
               value={bodyFat}
-              onChange={(e) => setBodyFat(Math.max(3, parseFloat(e.target.value) || 0))}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => setBodyFat(e.target.value === '' ? '' : parseFloat(e.target.value))}
+              placeholder="0"
               className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-emerald-400 font-black text-center focus:border-emerald-500 focus:outline-none"
             />
           </div>
@@ -506,7 +533,9 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
                     <input
                       type="number"
                       value={neckCm}
-                      onChange={(e) => setNeckCm(parseFloat(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setNeckCm(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                      placeholder="0"
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-bold text-center focus:border-emerald-500 focus:outline-none"
                     />
                   </div>
@@ -516,7 +545,9 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
                     <input
                       type="number"
                       value={waistCm}
-                      onChange={(e) => setWaistCm(parseFloat(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setWaistCm(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                      placeholder="0"
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-bold text-center focus:border-emerald-500 focus:outline-none"
                     />
                   </div>
@@ -527,7 +558,9 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
                       <input
                         type="number"
                         value={hipCm}
-                        onChange={(e) => setHipCm(parseFloat(e.target.value) || 0)}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setHipCm(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                        placeholder="0"
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-white font-bold text-center focus:border-emerald-500 focus:outline-none"
                       />
                     </div>
@@ -658,7 +691,9 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
                         type="number"
                         step="0.1"
                         value={proteinGPerKg}
-                        onChange={(e) => setProteinGPerKg(parseFloat(e.target.value) || 0)}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setProteinGPerKg(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                        placeholder="0"
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-emerald-400 font-bold font-mono text-center"
                       />
                     </div>
@@ -668,7 +703,9 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
                         type="number"
                         step="0.1"
                         value={fatGPerKg}
-                        onChange={(e) => setFatGPerKg(parseFloat(e.target.value) || 0)}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setFatGPerKg(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                        placeholder="0"
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-rose-400 font-bold font-mono text-center"
                       />
                     </div>
@@ -680,7 +717,9 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
                       <input
                         type="number"
                         value={carbPercent}
-                        onChange={(e) => setCarbPercent(parseInt(e.target.value) || 0)}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setCarbPercent(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+                        placeholder="0"
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-cyan-400 font-bold font-mono text-center"
                       />
                     </div>
@@ -689,7 +728,9 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
                       <input
                         type="number"
                         value={proteinPercent}
-                        onChange={(e) => setProteinPercent(parseInt(e.target.value) || 0)}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setProteinPercent(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+                        placeholder="0"
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-emerald-400 font-bold font-mono text-center"
                       />
                     </div>
@@ -698,7 +739,9 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
                       <input
                         type="number"
                         value={fatPercent}
-                        onChange={(e) => setFatPercent(parseInt(e.target.value) || 0)}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setFatPercent(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+                        placeholder="0"
                         className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-rose-400 font-bold font-mono text-center"
                       />
                     </div>
@@ -737,7 +780,9 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
                   <input
                     type="number"
                     value={workoutHoursPerWeek}
-                    onChange={(e) => setWorkoutHoursPerWeek(parseInt(e.target.value) || 0)}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setWorkoutHoursPerWeek(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+                    placeholder="0"
                     className="w-16 bg-slate-800 border border-slate-700 rounded-lg text-center font-bold text-white px-2 py-1"
                   />
                 </div>
@@ -786,7 +831,9 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
                     <input
                       type="number"
                       value={targetWeightKg}
-                      onChange={(e) => setTargetWeightKg(parseFloat(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setTargetWeightKg(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                      placeholder="0"
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-amber-400 font-bold font-mono text-center"
                     />
                   </div>

@@ -43,7 +43,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ plan, activeTab, onChangeT
 
   return (
     <div className="fixed bottom-3 left-0 right-0 z-40 px-4 pointer-events-none flex justify-center">
-      <nav className="pointer-events-auto w-full max-w-md bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/90 dark:border-slate-800/90 rounded-3xl shadow-xl p-1.5 transition-colors">
+      <nav className="pointer-events-auto w-full max-w-md bg-white/95 dark:bg-[#2D103E]/95 backdrop-blur-xl border border-[#D8C4E9]/80 dark:border-[#542870]/80 rounded-3xl shadow-xl p-1.5 transition-colors">
         <div 
           className="grid h-14 items-center"
           style={{ gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))` }}
@@ -54,10 +54,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({ plan, activeTab, onChangeT
               <button
                 key={item.id}
                 onClick={() => onChangeTab(item.id)}
-                className={`flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-2xl transition-all cursor-pointer relative ${
+                className={`flex flex-col items-center justify-center gap-1 py-1.5 px-2 rounded-2xl transition-all cursor-pointer relative ${
                   isActive
-                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 font-black scale-102'
-                    : 'text-slate-500 dark:text-slate-400 font-bold hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                    ? 'bg-[#F1E9F8] dark:bg-[#3D1B53] text-[#E21B6D] dark:text-[#FF4099] font-bold scale-[1.02] shadow-xs'
+                    : 'text-[#6F5A7D] dark:text-[#B792D4] font-medium hover:text-[#3A124D] dark:hover:text-[#EDE5F5] hover:bg-[#F8F7F9] dark:hover:bg-[#3D1B53]/40'
                 }`}
               >
                 {item.icon}
@@ -70,3 +70,4 @@ export const BottomNav: React.FC<BottomNavProps> = ({ plan, activeTab, onChangeT
     </div>
   );
 };
+

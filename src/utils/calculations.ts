@@ -1,27 +1,26 @@
 import { DayLog, PlanConfig } from '../types';
-import { loadDayLog } from './storage';
+import { loadDayLog, getTodayDateString, parseLocalDate } from './storage';
 import { getHungerInfo } from './hungerScale';
 import { getAllScheduledDoses, calculateDailyMedicationAdherence, APPETITE_EFFECT_LABELS, WEIGHT_EFFECT_LABELS } from './medications';
 import { getCycleInfo, CYCLE_SYMPTOMS, CLINICAL_FLAGS_META, getWeightVsRecentAverage } from './cycleTracking';
 import { formatLabSummaryForWhatsApp } from './labTracking';
 
-export function calculateEffectiveWaterGoal(plan: PlanConfig, day: DayLog): number {
+export function calculateEffectiveWaterGoal(plan: PlanConfig, day: DayLog, knownLatestWeight?: number | null): number {
   if (day.weight && day.weight > 0) {
     return Math.round(day.weight * 35);
   }
-  const lastWeight = findLatestWeight();
+  const lastWeight = knownLatestWeight !== undefined ? knownLatestWeight : findLatestWeight();
   if (lastWeight && lastWeight > 0) {
     return Math.round(lastWeight * 35);
   }
   return plan.dailyWaterGoalMl || 3000;
 }
 
-export function findLatestWeight(): number | null {
-  const d = new Date();
+export function findLatestWeight(fromDateStr?: string): number | null {
+  const baseDate = fromDateStr ? parseLocalDate(fromDateStr) : new Date();
   for (let i = 0; i < 60; i++) {
-    const cur = new Date(d);
-    cur.setDate(d.getDate() - i);
-    const dateStr = cur.toISOString().slice(0, 10);
+    const cur = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() - i);
+    const dateStr = getTodayDateString(cur);
     const log = loadDayLog(dateStr);
     if (log && log.weight && log.weight > 0) {
       return log.weight;
@@ -191,11 +190,10 @@ export function calculateDayScore(plan: PlanConfig, day: DayLog): ScoreBreakdown
 
 export function calculateStreak(refDateStr: string, plan: PlanConfig): number {
   let streak = 0;
-  const d = new Date(refDateStr);
+  const baseDate = parseLocalDate(refDateStr);
   for (let i = 0; i < 90; i++) {
-    const cur = new Date(d);
-    cur.setDate(d.getDate() - i);
-    const dateStr = cur.toISOString().slice(0, 10);
+    const cur = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() - i);
+    const dateStr = getTodayDateString(cur);
     const log = loadDayLog(dateStr);
     const score = calculateDayScore(plan, log).total;
     if (score >= 75 || log.isFreeze) {
@@ -208,14 +206,14 @@ export function calculateStreak(refDateStr: string, plan: PlanConfig): number {
 }
 
 export function countFreezeDaysInMonth(refDateStr: string): number {
-  const d = new Date(refDateStr);
-  const year = d.getFullYear();
-  const month = d.getMonth();
+  const baseDate = parseLocalDate(refDateStr);
+  const year = baseDate.getFullYear();
+  const month = baseDate.getMonth();
   let count = 0;
   for (let day = 1; day <= 31; day++) {
     const checkDate = new Date(year, month, day);
     if (checkDate.getMonth() !== month) break;
-    const dateStr = checkDate.toISOString().slice(0, 10);
+    const dateStr = getTodayDateString(checkDate);
     if (dateStr === refDateStr) continue;
     const log = loadDayLog(dateStr);
     if (log && log.isFreeze) count++;
@@ -260,22 +258,297 @@ export function calculateWHtR(waistCm: number | null, heightCm: number | null): 
   }
 }
 
-export function calculateBMR(weightKg: number, heightCm: number, ageYears: number, gender: 'male' | 'female'): number {
-  if (gender === 'male') {
-    return Math.round(10 * weightKg + 6.25 * heightCm - 5 * ageYears + 5);
-  } else {
-    return Math.round(10 * weightKg + 6.25 * heightCm - 5 * ageYears - 161);
-  }
+/**
+ * معادلة خلود المعتمدة لمعدل الحرق الأساسي (REE / BMR):
+ * REE = (9.99 × الوزن_كجم) + (6.25 × الطول_سم) − (4.92 × العمر_سنة)
+ * الناتج يُقرّب لأقرب عدد صحيح، وهي صيغة موحدة للجنسين في خطوة الـ REE (بدون +5 أو -161).
+ */
+export function calculateREE_Kholoud(weightKg: number, heightCm: number, ageYears: number): number {
+  if (weightKg <= 0 || heightCm <= 0 || ageYears <= 0) return 0;
+  return Math.round(9.99 * weightKg + 6.25 * heightCm - 4.92 * ageYears);
 }
 
-export function calculateTDEE(bmr: number, activityLevel: 'sedentary' | 'light' | 'moderate' | 'very_active'): number {
-  const multipliers = {
-    sedentary: 1.2,
-    light: 1.375,
-    moderate: 1.55,
-    very_active: 1.725,
+/**
+ * calculateBMR - تستخدم صيغة معادلة خلود الموحدة كافتراضي أساسي.
+ * يمكن تمرير useClassicMifflin: true لاختيار صيغة ميفلين الكلاسيكية ذات التفريق الجنسي.
+ */
+export function calculateBMR(
+  weightKg: number,
+  heightCm: number,
+  ageYears: number,
+  gender?: 'male' | 'female',
+  useClassicMifflin: boolean = false
+): number {
+  if (useClassicMifflin && gender) {
+    if (gender === 'male') {
+      return Math.round(10 * weightKg + 6.25 * heightCm - 5 * ageYears + 5);
+    } else {
+      return Math.round(10 * weightKg + 6.25 * heightCm - 5 * ageYears - 161);
+    }
+  }
+  // معادلة خلود الموحدة
+  return calculateREE_Kholoud(weightKg, heightCm, ageYears);
+}
+
+/**
+ * calculateTDEE - إجمالي الحرق اليومي بالنشاط
+ * حسب معادلة خلود:
+ * - ذكر (male): 1.6 (نشاط متوسط عام)
+ * - أنثى (female): 1.5 (نشاط متوسط عام)
+ * ويدعم أيضاً معاملات عددية مخصصة ومستويات النشاط المعتادة.
+ */
+export function calculateTDEE(
+  bmr: number,
+  activityOrGender: 'male' | 'female' | 'sedentary' | 'light' | 'moderate' | 'very_active' | number = 'female'
+): number {
+  let multiplier = 1.5;
+  if (typeof activityOrGender === 'number') {
+    multiplier = activityOrGender;
+  } else if (activityOrGender === 'male') {
+    multiplier = 1.6;
+  } else if (activityOrGender === 'female') {
+    multiplier = 1.5;
+  } else {
+    const multipliers: Record<string, number> = {
+      sedentary: 1.2,
+      light: 1.375,
+      moderate: 1.55,
+      very_active: 1.725,
+    };
+    multiplier = multipliers[activityOrGender] || 1.5;
+  }
+  return Math.round(bmr * multiplier);
+}
+
+export type WeightGoalOption = 'cut_moderate' | 'cut_aggressive' | 'maintain' | 'bulk_mild';
+
+export interface GoalCalorieResult {
+  targetCalories: number;
+  rawCalories: number;
+  isBelowSafeFloor: boolean;
+  safeFloor: number;
+  deficitOrSurplus: number;
+}
+
+/**
+ * حساب السعرات المستهدفة وفق معادلة خلود مع قيود الأمان الطبي
+ * - خسارة 0.5 كجم: عجز 500 سعرة (TDEE - 500)
+ * - خسارة 1 كجم: عجز 1000 سعرة (TDEE - 1000)
+ * - تثبيت: TDEE
+ * - زيادة معتدلة: TDEE + 300
+ * قيود أمان: لا تسمح بهبوط السعرات تحت 1200 للأنثى و 1500 للذكر.
+ */
+export function calculateTargetCaloriesKholoud(
+  tdee: number,
+  goal: WeightGoalOption,
+  gender: 'male' | 'female' = 'female'
+): GoalCalorieResult {
+  let delta = 0;
+  if (goal === 'cut_moderate') {
+    delta = -500;
+  } else if (goal === 'cut_aggressive') {
+    delta = -1000;
+  } else if (goal === 'maintain') {
+    delta = 0;
+  } else if (goal === 'bulk_mild') {
+    delta = 300;
+  }
+
+  const rawCalories = Math.round(tdee + delta);
+  const safeFloor = gender === 'male' ? 1500 : 1200;
+  const isBelowSafeFloor = rawCalories < safeFloor;
+  const targetCalories = Math.max(safeFloor, rawCalories);
+
+  return {
+    targetCalories,
+    rawCalories,
+    isBelowSafeFloor,
+    safeFloor,
+    deficitOrSurplus: delta,
   };
-  return Math.round(bmr * (multipliers[activityLevel] || 1.375));
+}
+
+/**
+ * توزيع الماكروز المقترح وفق معادلة خلود:
+ * - بروتين: 1.6 - 2.0 جم/كجم حسب الهدف
+ * - دهون: 0.7 - 1.0 جم/كجم
+ * - باقي السعرات كاربوهيدرات
+ */
+export function calculateMacrosKholoud(
+  weightKg: number,
+  targetCalories: number,
+  goal: WeightGoalOption = 'cut_moderate'
+): { protein: number; carbs: number; fats: number } {
+  let proteinPerKg = 1.8;
+  if (goal === 'cut_aggressive') proteinPerKg = 2.0;
+  else if (goal === 'cut_moderate') proteinPerKg = 1.8;
+  else if (goal === 'maintain') proteinPerKg = 1.6;
+  else if (goal === 'bulk_mild') proteinPerKg = 2.0;
+
+  const fatPerKg = goal === 'cut_aggressive' ? 0.7 : 0.8;
+
+  const proteinGrams = Math.round(weightKg * proteinPerKg);
+  const fatGrams = Math.round(weightKg * fatPerKg);
+
+  const caloriesFromProtAndFat = proteinGrams * 4 + fatGrams * 9;
+  const remainingCalsForCarbs = Math.max(100, targetCalories - caloriesFromProtAndFat);
+  const carbGrams = Math.round(remainingCalsForCarbs / 4);
+
+  return {
+    protein: proteinGrams,
+    carbs: carbGrams,
+    fats: fatGrams,
+  };
+}
+
+/**
+ * ==========================================
+ * معادلة سمر المعتمدة لحساب السعرات
+ * ==========================================
+ * 1) الوزن المثالي (كجم) = الطول (سم) − 100
+ * 2) الطاقة الأساسية (ك.كالوري/يوم) = الوزن المثالي × 22.5
+ * 3) طاقة النشاط اليومي = الوزن المثالي × معامل النشاط (بسيط: 7 | متوسط: 11 | شاق: 22)
+ * 4) السعرات الكلية = الطاقة الأساسية + طاقة النشاط
+ */
+export type SamarWorkLevel = 'light' | 'moderate' | 'heavy';
+
+export function calculateIdealWeightSamar(heightCm: number): number {
+  return heightCm - 100;
+}
+
+export function calculateBasalSamar(idealWeightKg: number): number {
+  return Math.round(idealWeightKg * 22.5);
+}
+
+export function calculateActivitySamar(
+  idealWeightKg: number,
+  workLevel: 'light' | 'moderate' | 'heavy'
+): number {
+  const coef = workLevel === 'light' ? 7 : workLevel === 'moderate' ? 11 : 22;
+  return Math.round(idealWeightKg * coef);
+}
+
+export interface SamarTotalResult {
+  idealWeight: number;
+  basal: number;
+  activity: number;
+  total: number;
+  activityCoefficient: number;
+  isValid: boolean;
+  validationError?: string;
+}
+
+export function calculateTotalCaloriesSamar(
+  heightCm: number,
+  workLevel: 'light' | 'moderate' | 'heavy'
+): SamarTotalResult {
+  const coef = workLevel === 'light' ? 7 : workLevel === 'moderate' ? 11 : 22;
+
+  if (!heightCm || heightCm < 120 || heightCm > 220) {
+    const ideal = heightCm ? heightCm - 100 : 0;
+    return {
+      idealWeight: ideal,
+      basal: 0,
+      activity: 0,
+      total: 0,
+      activityCoefficient: coef,
+      isValid: false,
+      validationError: 'يرجى إدخال طول منطقي بين 120 سم و 220 سم لحساب معادلة سمر.',
+    };
+  }
+
+  const idealWeight = calculateIdealWeightSamar(heightCm);
+  if (idealWeight < 40) {
+    return {
+      idealWeight,
+      basal: 0,
+      activity: 0,
+      total: 0,
+      activityCoefficient: coef,
+      isValid: false,
+      validationError: `الوزن المثالي المحسوب (${idealWeight} كجم) أقل من 40 كجم وغير منطقي للاعتماد السريري.`,
+    };
+  }
+
+  const basal = calculateBasalSamar(idealWeight);
+  const activity = calculateActivitySamar(idealWeight, workLevel);
+
+  return {
+    idealWeight,
+    basal,
+    activity,
+    total: basal + activity,
+    activityCoefficient: coef,
+    isValid: true,
+  };
+}
+
+/**
+ * حساب السعرات المستهدفة وفق معادلة سمر:
+ * - تثبيت: totalCalories
+ * - خسارة 0.5 كجم: totalCalories - 500
+ * - خسارة 1 كجم: totalCalories - 1000
+ * - زيادة معتدلة: totalCalories + 300
+ * قيود الأمان: لا تسمح بالنزول عن الحد الأدنى الآمن (1200 للأنثى / 1500 للذكر)
+ */
+export function calculateTargetCaloriesSamar(
+  totalCalories: number,
+  goal: WeightGoalOption,
+  gender: 'male' | 'female' = 'female'
+): GoalCalorieResult {
+  let delta = 0;
+  if (goal === 'cut_moderate') {
+    delta = -500;
+  } else if (goal === 'cut_aggressive') {
+    delta = -1000;
+  } else if (goal === 'maintain') {
+    delta = 0;
+  } else if (goal === 'bulk_mild') {
+    delta = 300;
+  }
+
+  const rawCalories = Math.round(totalCalories + delta);
+  const safeFloor = gender === 'male' ? 1500 : 1200;
+  const isBelowSafeFloor = rawCalories < safeFloor;
+  const targetCalories = Math.max(safeFloor, rawCalories);
+
+  return {
+    targetCalories,
+    rawCalories,
+    isBelowSafeFloor,
+    safeFloor,
+    deficitOrSurplus: delta,
+  };
+}
+
+/**
+ * توزيع الماكروز لمعادلة سمر (معتمدة على الوزن المثالي لتثبيت الاحتياج البروتيني الفسيولوجي):
+ */
+export function calculateMacrosSamar(
+  idealWeightKg: number,
+  targetCalories: number,
+  goal: WeightGoalOption = 'cut_moderate'
+): { protein: number; carbs: number; fats: number } {
+  let proteinPerKg = 1.8;
+  if (goal === 'cut_aggressive') proteinPerKg = 2.0;
+  else if (goal === 'cut_moderate') proteinPerKg = 1.8;
+  else if (goal === 'maintain') proteinPerKg = 1.6;
+  else if (goal === 'bulk_mild') proteinPerKg = 2.0;
+
+  const fatPerKg = goal === 'cut_aggressive' ? 0.7 : 0.8;
+
+  const proteinGrams = Math.round(idealWeightKg * proteinPerKg);
+  const fatGrams = Math.round(idealWeightKg * fatPerKg);
+
+  const caloriesFromProtAndFat = proteinGrams * 4 + fatGrams * 9;
+  const remainingCalsForCarbs = Math.max(80, targetCalories - caloriesFromProtAndFat);
+  const carbGrams = Math.round(remainingCalsForCarbs / 4);
+
+  return {
+    protein: proteinGrams,
+    carbs: carbGrams,
+    fats: fatGrams,
+  };
 }
 
 export function generateDailyReportText(plan: PlanConfig, day: DayLog, dateStr: string): string {

@@ -39,20 +39,28 @@ import {
   Heart,
   Wand2,
   Loader2,
-  Send
+  Send,
+  FileText,
+  Code2,
+  Smartphone,
+  Lock,
+  LogOut
 } from 'lucide-react';
 import { MealItem, CheckItem, SupplementItem, PlanConfig, SectionVisibility } from '../types';
 import { DEFAULT_PLAN, DEFAULT_VISIBLE_SECTIONS, exportFullBackupJSON, importFullBackupJSON, isSectionVisible, loadDayLog, getTodayDateString } from '../utils/storage';
 import { calculateDayScore } from '../utils/calculations';
-import { generateWhatsAppPlanMessage } from '../utils/planShare';
+import { generateWhatsAppPlanMessage, generatePlanReadableText, generatePlanSyncCode } from '../utils/planShare';
 import { ClinicalCalculatorSuiteModal } from './ClinicalCalculatorSuiteModal';
+import { BMRCalculatorModal } from './BMRCalculatorModal';
 import { PresetsLibraryModal } from './PresetsLibraryModal';
 import { MedicalConditionsEditor } from './MedicalConditionsEditor';
 import { MedicationsManager } from './MedicationsManager';
 import { CycleTrackingManager } from './CycleTrackingManager';
 import { LabTrackingManager } from './LabTrackingManager';
 import { MealExchangePlanner } from './MealExchangePlanner';
-import { requestWeeklyDraft } from '../utils/geminiCoach';
+import { CoachOnboardingModal } from './CoachOnboardingModal';
+import { HelpButton } from './FeatureHelpModal';
+import { generateLocalWeeklyDraft } from '../utils/coachDraft';
 import { 
   getAllPresets, 
   saveCustomPreset, 
@@ -65,20 +73,49 @@ import {
 interface CoachModalProps {
   plan: PlanConfig;
   coachSessionUnlocked?: boolean;
-  coachToken?: string | null;
   onSavePlan: (newPlan: PlanConfig) => void;
   onClose: () => void;
   onNotify: (msg: string) => void;
+  isPageMode?: boolean;
+  onNavigateClient?: () => void;
+  onLogoutCoach?: () => void;
+  onUnlockSession?: (enteredPin: string) => Promise<boolean>;
 }
 
 export const CoachModal: React.FC<CoachModalProps> = ({
   plan,
   coachSessionUnlocked,
-  coachToken,
   onSavePlan,
   onClose,
   onNotify,
+  isPageMode = false,
+  onNavigateClient,
+  onLogoutCoach,
+  onUnlockSession,
 }) => {
+  const [pagePinInput, setPagePinInput] = useState('');
+  const [pagePinError, setPagePinError] = useState(false);
+  const [isPagePinSubmitting, setIsPagePinSubmitting] = useState(false);
+
+  const handlePagePinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onUnlockSession) return;
+    setIsPagePinSubmitting(true);
+    setPagePinError(false);
+    const success = await onUnlockSession(pagePinInput);
+    setIsPagePinSubmitting(false);
+    if (!success) {
+      setPagePinError(true);
+    }
+  };
+
+  const handleCopyClientLink = () => {
+    const origin = window.location.origin;
+    navigator.clipboard.writeText(origin).then(() => {
+      onNotify('تم نسخ رابط شاشة العميل بنجاح 📋');
+    });
+  };
+
   const [draft, setDraft] = useState<PlanConfig>(() => ({
     ...JSON.parse(JSON.stringify(plan)),
     visibleSections: {
@@ -89,6 +126,7 @@ export const CoachModal: React.FC<CoachModalProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<'presets' | 'profile' | 'calculators' | 'medical' | 'medications' | 'cycle' | 'labs' | 'meals' | 'habits' | 'sections' | 'weights' | 'backup'>('presets');
   const [mealEditMode, setMealEditMode] = useState<'exchanges' | 'manual'>('exchanges');
   const [showBMRCalc, setShowBMRCalc] = useState(false);
+  const [showClinicalSuite, setShowClinicalSuite] = useState(false);
   const [showPresetsModal, setShowPresetsModal] = useState(false);
   const [selectedPresetCategory, setSelectedPresetCategory] = useState<string>('all');
   const [previewPreset, setPreviewPreset] = useState<PlanPreset | null>(null);
@@ -97,17 +135,30 @@ export const CoachModal: React.FC<CoachModalProps> = ({
   const [newPresetCategory, setNewPresetCategory] = useState<PlanPreset['category']>('custom');
   const [newPresetSummary, setNewPresetSummary] = useState('');
   const [presetsList, setPresetsList] = useState<PlanPreset[]>(getAllPresets);
+  const [showCoachOnboarding, setShowCoachOnboarding] = useState(() => {
+    try {
+      const seen = localStorage.getItem('smartdiet_coach_onboarding_seen');
+      if (!seen) {
+        localStorage.setItem('smartdiet_coach_onboarding_seen', 'true');
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  });
 
-  // Gemini Smart Weekly Message Draft state in Coach Panel
-  const [isGeneratingWeeklyDraft, setIsGeneratingWeeklyDraft] = useState(false);
+  // Weekly Message Draft state in Coach Panel
   const [coachWeeklyDraftText, setCoachWeeklyDraftText] = useState<string | null>(null);
+
+  // Dedicated WhatsApp Share Options Modal state
+  const [showShareOptionsModal, setShowShareOptionsModal] = useState(false);
 
   const refreshPresets = () => {
     setPresetsList(getAllPresets());
   };
 
-  const handleGenerateCoachWeeklyDraft = async () => {
-    setIsGeneratingWeeklyDraft(true);
+  const handleGenerateCoachWeeklyDraft = () => {
     const todayStr = getTodayDateString();
     const ref = new Date(todayStr);
     let totalScore = 0;
@@ -145,7 +196,7 @@ export const CoachModal: React.FC<CoachModalProps> = ({
     const weightChange = weights.length >= 2 ? parseFloat((weights[weights.length - 1] - weights[0]).toFixed(1)) : null;
     const avgWater = waterDaysCount > 0 ? Math.round(totalWater / 7) : null;
 
-    const res = await requestWeeklyDraft({
+    const draftText = generateLocalWeeklyDraft({
       clientName: draft.clientName || 'البطل',
       avgAdherence,
       bestDay: `${bestDate} (${bestScore}%)`,
@@ -154,17 +205,10 @@ export const CoachModal: React.FC<CoachModalProps> = ({
       exerciseDays,
       goal: draft.goal,
       rangeDays: 7,
-    }, coachToken);
+    });
 
-    setIsGeneratingWeeklyDraft(false);
-
-    if (!res.ok || !res.whatsappDraft) {
-      onNotify(res.error || 'تعذر صياغة مسودة الواتساب الذكية.');
-      return;
-    }
-
-    setCoachWeeklyDraftText(res.whatsappDraft);
-    onNotify('تمت صياغة مسودة رسالة الأسبوع الذكية بنجاح ✨');
+    setCoachWeeklyDraftText(draftText);
+    onNotify('تمت صياغة مسودة رسالة الأسبوع بنجاح 📋');
   };
 
   const handleApplyPreset = (preset: PlanPreset) => {
@@ -291,10 +335,48 @@ export const CoachModal: React.FC<CoachModalProps> = ({
     onClose();
   };
 
-  const handleCopyPlanForWhatsApp = () => {
+  // 1. Readable Plan Text Only (Without #START_PLAN_DATA# Code)
+  const handleShareReadablePlanWhatsApp = () => {
+    const text = generatePlanReadableText(draft);
+    const encoded = encodeURIComponent(text);
+    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
+    onNotify('جاري فتح الواتساب بنص الخطة المكتوبة الشاملة (بدون كود) 📄');
+  };
+
+  const handleCopyReadablePlan = () => {
+    const text = generatePlanReadableText(draft);
+    navigator.clipboard.writeText(text).then(() => {
+      onNotify('تم نسخ الخطة المكتوبة بالكامل (بدون كود) 📋');
+    });
+  };
+
+  // 2. Sync Code Only (#START_PLAN_DATA# ... #END_PLAN_DATA#)
+  const handleShareSyncCodeWhatsApp = () => {
+    const text = generatePlanSyncCode(draft);
+    const encoded = encodeURIComponent(text);
+    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
+    onNotify('جاري فتح الواتساب بكود تفعيل الخطة للتطبيق فقط 🔑');
+  };
+
+  const handleCopySyncCode = () => {
+    const text = generatePlanSyncCode(draft);
+    navigator.clipboard.writeText(text).then(() => {
+      onNotify('تم نسخ كود تفعيل الخطة للتطبيق بنجاح 📋');
+    });
+  };
+
+  // 3. Full Combined Message (Text + Code)
+  const handleShareFullPlanWhatsApp = () => {
+    const fullMessage = generateWhatsAppPlanMessage(draft);
+    const encoded = encodeURIComponent(fullMessage);
+    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
+    onNotify('جاري فتح الواتساب بالرسالة الشاملة (نص + كود المزامنة) 💬');
+  };
+
+  const handleCopyFullPlan = () => {
     const fullMessage = generateWhatsAppPlanMessage(draft);
     navigator.clipboard.writeText(fullMessage).then(() => {
-      onNotify('تم نسخ رسالة الخطة الشاملة للواتساب مع كافة الإعدادات والإرشادات 📋');
+      onNotify('تم نسخ رسالة الخطة الشاملة (نص + كود) للواتساب 📋');
     });
   };
 
@@ -303,13 +385,6 @@ export const CoachModal: React.FC<CoachModalProps> = ({
     navigator.clipboard.writeText(jsonStr).then(() => {
       onNotify('تم نسخ كود الخطة الخام (JSON) 📋');
     });
-  };
-
-  const handleDirectWhatsAppShare = () => {
-    const fullMessage = generateWhatsAppPlanMessage(draft);
-    const encoded = encodeURIComponent(fullMessage);
-    window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
-    onNotify('جاري فتح الواتساب لإرسال الخطة للمتدرب 💬');
   };
 
   const handleExportFullBackup = () => {
@@ -412,108 +487,263 @@ export const CoachModal: React.FC<CoachModalProps> = ({
     setDraft({ ...draft, tips: updated });
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-150">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 flex items-center justify-center font-bold">
-              <Settings className="w-4 h-4" />
+  if (isPageMode && !coachSessionUnlocked) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4 text-right dir-rtl">
+        <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-16 h-16 rounded-3xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-3xl font-bold mx-auto border border-emerald-500/20 shadow-sm">
+              🩺
             </div>
+            <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
+              لوحة تحكم الأخصائية (Smart Diet)
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">
+              إشراف د. شيماء — يرجى إدخال رمز PIN السري للدخول
+            </p>
+          </div>
+
+          <form onSubmit={handlePagePinSubmit} className="space-y-4">
             <div>
-              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
-                لوحة تحكم الطبيبة (د. شيماء) 🩺
-              </h3>
-              <p className="text-[11px] text-slate-400">تخصيص الخطة والسعرات والوجبات والبدائل</p>
+              <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-2">
+                رمز PIN السري:
+              </label>
+              <input
+                type="password"
+                maxLength={8}
+                value={pagePinInput}
+                onChange={(e) => {
+                  setPagePinInput(e.target.value);
+                  setPagePinError(false);
+                }}
+                placeholder="•••••"
+                className="w-full text-center tracking-widest text-lg font-black min-h-[48px] p-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              {pagePinError && (
+                <p className="text-xs font-bold text-rose-500 mt-2 text-center">
+                  رمز PIN غير صحيح. يرجى المحاولة مرة أخرى ⚠️
+                </p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={isPagePinSubmitting}
+              className="w-full min-h-[48px] py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm transition-all shadow-md active:scale-98 cursor-pointer flex items-center justify-center gap-2"
+            >
+              {isPagePinSubmitting ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <Lock className="w-4 h-4" />
+                  <span>دخول لوحة التحكم 🔐</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 text-center">
+            <button
+              onClick={onNavigateClient}
+              className="text-xs font-bold text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 transition-colors inline-flex items-center gap-1 cursor-pointer"
+            >
+              <span>الانتقال إلى شاشة العميل 📱</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={isPageMode ? "min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col text-right dir-rtl pb-24" : "fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 md:p-6 animate-in fade-in duration-150"}>
+      <div className={isPageMode ? "w-full flex-1 flex flex-col text-right dir-rtl" : "bg-white dark:bg-slate-900 w-full max-w-6xl 2xl:max-w-7xl rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-2xl h-[95vh] sm:h-[92vh] flex flex-col overflow-hidden text-right dir-rtl"}>
+        
+        {/* Header - Spacious Ergonomic Workstation */}
+        <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0 bg-slate-50/80 dark:bg-slate-900/90 backdrop-blur-xs">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold shrink-0 border border-emerald-500/20 shadow-2xs">
+              <Settings className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm sm:text-base md:text-lg truncate">
+                  لوحة تحكم الطبيبة (د. شيماء) 🩺
+                </h3>
+                {draft.clientName && (
+                  <span className="text-[10px] sm:text-xs font-black px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 truncate max-w-[160px]">
+                    المتدرب: {draft.clientName}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">
+                تخصيص الخطة والسعرات والبدائل الإكلينيكية وإدارة الحالات الطبية
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-full">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {isPageMode ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="min-h-[40px] px-3.5 sm:px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition-all flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                  title="حفظ الخطة"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>حفظ الخطة 💾</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onNavigateClient}
+                  className="min-h-[40px] px-3 sm:px-4 py-2 rounded-2xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                  title="معاينة شاشة العميل"
+                >
+                  <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span className="hidden xs:inline">معاينة شاشة العميل 📱</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopyClientLink}
+                  className="min-h-[40px] px-3 sm:px-4 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                  title="نسخ رابط شاشة العميل"
+                >
+                  <Copy className="w-4 h-4" />
+                  <span className="hidden sm:inline">نسخ رابط العميل 📋</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowCoachOnboarding(true)}
+                  className="min-h-[40px] px-3 sm:px-4 py-2 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                  title="دليل استخدام لوحة الطبيبة"
+                >
+                  <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span className="hidden md:inline">دليل اللوحة 📖</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onLogoutCoach}
+                  className="min-h-[40px] px-3 sm:px-4 py-2 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                  title="تسجيل الخروج"
+                >
+                  <LogOut className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                  <span className="hidden sm:inline">تسجيل الخروج 🚪</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowCoachOnboarding(true)}
+                  className="min-h-[40px] px-3 sm:px-4 py-2 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shrink-0 shadow-2xs"
+                  title="دليل استخدام لوحة الطبيبة"
+                >
+                  <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span className="hidden sm:inline">دليل اللوحة 📖</span>
+                </button>
+
+                <button 
+                  onClick={onClose} 
+                  className="w-10 h-10 rounded-2xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors shrink-0 cursor-pointer active:scale-95 border border-slate-200/50 dark:border-slate-700/50"
+                  title="إغلاق"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Sub-tabs */}
-        <div className="flex gap-1 overflow-x-auto pb-2 mb-3 border-b border-slate-100 dark:border-slate-800">
-          {[
-            { id: 'presets', label: 'مكتبة القوالب 📂', icon: <FolderHeart className="w-3.5 h-3.5 text-emerald-500" /> },
-            { id: 'profile', label: 'المتدرب والسعرات', icon: <User className="w-3.5 h-3.5" /> },
-            { id: 'calculators', label: 'الحاسبة الإكلينيكية ⚡', icon: <Calculator className="w-3.5 h-3.5 text-blue-500" /> },
-            { 
-              id: 'medical', 
-              label: `الحالات والتشخيصات 🩺${draft.medicalConditions?.conditions?.length ? ` (${draft.medicalConditions.conditions.length})` : ''}`, 
-              icon: <Stethoscope className="w-3.5 h-3.5 text-teal-500" /> 
-            },
-            { 
-              id: 'medications', 
-              label: `سجل الأدوية والتفاعلات 💊${draft.medicationPlan?.items?.length ? ` (${draft.medicationPlan.items.length})` : ''}`, 
-              icon: <Pill className="w-3.5 h-3.5 text-blue-500" /> 
-            },
-            { 
-              id: 'cycle', 
-              label: `تتبع الدورة 🌸${draft.cycleTracking?.enabled ? ' (مفعّل)' : ''}`, 
-              icon: <Heart className="w-3.5 h-3.5 text-rose-500" /> 
-            },
-            { 
-              id: 'labs', 
-              label: `التحاليل المعملية 🧪${draft.labTracking?.entries?.length ? ` (${draft.labTracking.entries.length})` : ''}`, 
-              icon: <Activity className="w-3.5 h-3.5 text-teal-500" /> 
-            },
-            { id: 'meals', label: 'الوجبات والبدائل', icon: <Utensils className="w-3.5 h-3.5" /> },
-            { id: 'habits', label: 'العادات والمكملات', icon: <CheckSquare className="w-3.5 h-3.5" /> },
-            { id: 'sections', label: 'تخصيص اللوحات 👁️', icon: <LayoutGrid className="w-3.5 h-3.5" /> },
-            { id: 'weights', label: 'أوزان التقييم %', icon: <Sliders className="w-3.5 h-3.5" /> },
-            { id: 'backup', label: 'النسخ والمشاركة', icon: <Copy className="w-3.5 h-3.5" /> },
-          ].map((tab) => {
-            const isSelected = activeSubTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveSubTab(tab.id as any)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 cursor-pointer ${
-                  isSelected
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            );
-          })}
+        {/* Sub-tabs Navigation Bar - Spacious & Categorized */}
+        <div className="bg-slate-100/60 dark:bg-slate-850/60 border-b border-slate-200/80 dark:border-slate-800 px-3 sm:px-6 py-2.5 shrink-0">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+            {[
+              { id: 'presets', label: 'مكتبة القوالب 📂', icon: <FolderHeart className="w-4 h-4 text-emerald-500" /> },
+              { id: 'profile', label: 'المتدرب والسعرات', icon: <User className="w-4 h-4 text-blue-500" /> },
+              { id: 'calculators', label: 'الحاسبة ⚡', icon: <Calculator className="w-4 h-4 text-cyan-500" /> },
+              { 
+                id: 'medical', 
+                label: `التشخيصات 🩺${draft.medicalConditions?.conditions?.length ? ` (${draft.medicalConditions.conditions.length})` : ''}`, 
+                icon: <Stethoscope className="w-4 h-4 text-teal-500" /> 
+              },
+              { 
+                id: 'medications', 
+                label: `الأدوية 💊${draft.medicationPlan?.items?.length ? ` (${draft.medicationPlan.items.length})` : ''}`, 
+                icon: <Pill className="w-4 h-4 text-indigo-500" /> 
+              },
+              { 
+                id: 'cycle', 
+                label: `الدورة 🌸${draft.cycleTracking?.enabled ? ' (مفعّل)' : ''}`, 
+                icon: <Heart className="w-4 h-4 text-rose-500" /> 
+              },
+              { 
+                id: 'labs', 
+                label: `التحاليل 🧪${draft.labTracking?.entries?.length ? ` (${draft.labTracking.entries.length})` : ''}`, 
+                icon: <Activity className="w-4 h-4 text-teal-500" /> 
+              },
+              { id: 'meals', label: 'الوجبات والبدائل', icon: <Utensils className="w-4 h-4 text-emerald-500" /> },
+              { id: 'habits', label: 'العادات والمكملات', icon: <CheckSquare className="w-4 h-4 text-purple-500" /> },
+              { id: 'sections', label: 'تخصيص اللوحات 👁️', icon: <LayoutGrid className="w-4 h-4 text-amber-500" /> },
+              { id: 'weights', label: 'أوزان التقييم %', icon: <Sliders className="w-4 h-4 text-slate-500" /> },
+              { id: 'backup', label: 'النسخ والمشاركة 📤', icon: <Copy className="w-4 h-4 text-emerald-500" /> },
+            ].map((tab) => {
+              const isSelected = activeSubTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveSubTab(tab.id as any)}
+                  className={`min-h-[42px] px-3.5 sm:px-4 py-2 rounded-2xl text-xs sm:text-[13px] font-black whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95 ${
+                    isSelected
+                      ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/30'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750 border border-slate-200/80 dark:border-slate-700/70 hover:border-slate-300'
+                  }`}
+                >
+                  {tab.icon}
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+        {/* Main Tab Content - Spacious & Multi-Column Optimized */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 space-y-6">
           
           {/* TAB 0: Presets Library */}
           {activeSubTab === 'presets' && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {/* Presets top info & Save Custom Button */}
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border border-emerald-200 dark:border-emerald-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border border-emerald-200 dark:border-emerald-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
                 <div>
-                  <h4 className="text-xs font-black text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
-                    <FolderHeart className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    مكتبة القوالب العلاجية والغذائية الجاهزة 📂
-                  </h4>
-                  <p className="text-[11px] text-emerald-700/90 dark:text-emerald-300 mt-0.5">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs sm:text-sm font-black text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+                      <FolderHeart className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      مكتبة القوالب العلاجية والغذائية الجاهزة 📂
+                    </h4>
+                    <HelpButton featureId="coachPresets" size="sm" />
+                  </div>
+                  <p className="text-[11px] sm:text-xs text-emerald-700/90 dark:text-emerald-300 mt-1">
                     اختاري قالب متكامل لحالة المتدرب ليتم ملء الوجبات والبدائل والمكملات والسعرات بضغطة واحدة
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 self-stretch sm:self-auto">
+                <div className="flex items-center gap-2 self-stretch sm:self-auto shrink-0">
                   <button
                     onClick={() => setShowSavePresetPrompt(true)}
-                    className="flex-1 sm:flex-none px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                    className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
                   >
-                    <BookmarkPlus className="w-3.5 h-3.5" />
+                    <BookmarkPlus className="w-4 h-4" />
                     <span>حفظ خطتي الحالية كقالب 💾</span>
                   </button>
                 </div>
               </div>
 
               {/* Categories Pills */}
-              <div className="flex gap-1.5 overflow-x-auto pb-1">
+              <div className="flex gap-2 overflow-x-auto pb-1">
                 {[
                   { id: 'all', label: 'كافة القوالب' },
                   { id: 'medical', label: '🩺 علاجي PCOS' },
@@ -528,10 +758,10 @@ export const CoachModal: React.FC<CoachModalProps> = ({
                     <button
                       key={c.id}
                       onClick={() => setSelectedPresetCategory(c.id)}
-                      className={`px-3 py-1 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer ${
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all cursor-pointer ${
                         isSel
                           ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-2xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                       }`}
                     >
                       {c.label}
@@ -540,8 +770,8 @@ export const CoachModal: React.FC<CoachModalProps> = ({
                 })}
               </div>
 
-              {/* Presets List */}
-              <div className="space-y-3">
+              {/* Presets List in 2-column or 3-column responsive grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {presetsList
                   .filter((p) => {
                     if (selectedPresetCategory === 'all') return true;
@@ -552,78 +782,80 @@ export const CoachModal: React.FC<CoachModalProps> = ({
                     return (
                       <div
                         key={preset.id}
-                        className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 sm:p-4 hover:border-emerald-500/60 transition-all space-y-2.5 shadow-2xs"
+                        className="bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 sm:p-4.5 hover:border-emerald-500/60 transition-all flex flex-col justify-between space-y-3 shadow-2xs hover:shadow-xs"
                       >
                         {/* Header */}
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xl">{preset.icon}</span>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h5 className="font-black text-slate-800 dark:text-slate-100 text-xs sm:text-sm">
-                                  {preset.name}
-                                </h5>
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border ${preset.tagColor}`}>
-                                  {preset.badge}
-                                </span>
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-2xl">{preset.icon}</span>
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h5 className="font-black text-slate-800 dark:text-slate-100 text-xs sm:text-sm">
+                                    {preset.name}
+                                  </h5>
+                                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border ${preset.tagColor}`}>
+                                    {preset.badge}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
+                                  {preset.description}
+                                </p>
                               </div>
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
-                                {preset.description}
-                              </p>
                             </div>
+
+                            {preset.isCustom && (
+                              <button
+                                onClick={(e) => handleDeletePreset(preset, e)}
+                                className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg cursor-pointer shrink-0"
+                                title="حذف القالب"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
 
-                          {preset.isCustom && (
-                            <button
-                              onClick={(e) => handleDeletePreset(preset, e)}
-                              className="p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg cursor-pointer"
-                              title="حذف القالب"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Stats Badges */}
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-300 pt-1 border-t border-slate-100 dark:border-slate-700/60">
-                          <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-200">
-                            🔥 {preset.targetCalories} كالوري
-                          </span>
-                          <span className="px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
-                            🥩 بروتين: {preset.targetProtein} جم
-                          </span>
-                          <span className="px-2 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300">
-                            🌾 كارب: {preset.targetCarbs} جم
-                          </span>
-                          <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300">
-                            ⏳ صيام: {preset.fastingHours}h
-                          </span>
-                          <span className="px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300">
-                            💧 ماء: {preset.dailyWaterGoalMl / 1000}L
-                          </span>
-                          <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-900 text-slate-500">
-                            🍽️ {preset.mealsCount} وجبات • 💊 {preset.supplementsCount} مكملات
-                          </span>
+                          {/* Stats Badges */}
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 pt-2.5 mt-2 border-t border-slate-100 dark:border-slate-700/60">
+                            <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-200">
+                              🔥 {preset.targetCalories} كالوري
+                            </span>
+                            <span className="px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
+                              🥩 {preset.targetProtein}g بروتين
+                            </span>
+                            <span className="px-2 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300">
+                              🌾 {preset.targetCarbs}g كارب
+                            </span>
+                            <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300">
+                              ⏳ {preset.fastingHours}h صيام
+                            </span>
+                            <span className="px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300">
+                              💧 {preset.dailyWaterGoalMl / 1000}L
+                            </span>
+                            <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-900 text-slate-500">
+                              🍽️ {preset.mealsCount} وجبات • 💊 {preset.supplementsCount} مكملات
+                            </span>
+                          </div>
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center justify-end gap-2 pt-1">
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
                           <button
                             type="button"
                             onClick={() => setPreviewPreset(preset)}
                             className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            <span>معاينة المكونات</span>
+                            <span>معاينة</span>
                           </button>
 
                           <button
                             type="button"
                             onClick={() => handleApplyPreset(preset)}
-                            className="px-4 py-1.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white transition-all flex items-center gap-1 shadow-xs cursor-pointer active:scale-95"
+                            className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white transition-all flex items-center gap-1 shadow-xs cursor-pointer active:scale-95"
                           >
                             <Zap className="w-3.5 h-3.5" />
-                            <span>تطبيق القالب على المسودة ⚡</span>
+                            <span>تطبيق القالب ⚡</span>
                           </button>
                         </div>
                       </div>
@@ -631,7 +863,7 @@ export const CoachModal: React.FC<CoachModalProps> = ({
                   })}
               </div>
 
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2.5 border border-slate-200/70 dark:border-slate-700/60">
                 <Sparkles className="w-4 h-4 text-emerald-500 shrink-0" />
                 <span>
                   ملاحظة: تطبيق القالب يقوم بملء الوجبات والبدائل والعادات والمكملات والسعرات مع الحفاظ التلقائي على اسم المتدرب ووزنه وطوله الحالي.
@@ -640,213 +872,356 @@ export const CoachModal: React.FC<CoachModalProps> = ({
             </div>
           )}
 
-          {/* TAB 1: Profile & Goals & Calories */}
+          {/* TAB 1: Profile & Goals & Calories (Spacious 2-Column Grid) */}
           {activeSubTab === 'profile' && (
-            <div className="space-y-3">
-              {/* Presets Quick Shortcut */}
-              <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/70 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <FolderHeart className="w-4 h-4 text-emerald-600" />
-                  <span className="text-xs font-black text-emerald-900 dark:text-emerald-200">
-                    هل تريد بدء الخطة من قالب طبي جاهز؟
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveSubTab('presets')}
-                  className="px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition-colors cursor-pointer shadow-2xs"
-                >
-                  فتح مكتبة القوالب ⚡
-                </button>
-              </div>
-
-              {/* BMR Calculator Quick Trigger */}
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-200 dark:border-blue-900/60 flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1">
-                    <Calculator className="w-3.5 h-3.5" />
-                    حاسبة معدل الحرق والماكروز (BMR/TDEE)
-                  </h4>
-                  <p className="text-[11px] text-blue-700/80 dark:text-blue-300">
-                    احسب احتياج المتدرب وعجز السعرات وطبقه بضغطة زر
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowBMRCalc(true)}
-                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors shadow-xs"
-                >
-                  فتح الحاسبة ⚡
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-500 mb-1">اسم المتدرب</label>
-                <input
-                  type="text"
-                  value={draft.clientName || ''}
-                  onChange={(e) => setDraft({ ...draft, clientName: e.target.value })}
-                  className="w-full text-xs font-bold p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">الطول (سم)</label>
-                  <input
-                    type="number"
-                    value={draft.heightCm || ''}
-                    onChange={(e) => setDraft({ ...draft, heightCm: parseFloat(e.target.value) || null })}
-                    className="w-full text-xs font-bold p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">وزن البداية (كجم)</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={draft.startWeight || ''}
-                    onChange={(e) => setDraft({ ...draft, startWeight: parseFloat(e.target.value) || null })}
-                    className="w-full text-xs font-bold p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">الوزن المستهدف (كجم)</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={draft.targetWeight || ''}
-                    onChange={(e) => setDraft({ ...draft, targetWeight: parseFloat(e.target.value) || null })}
-                    className="w-full text-xs font-bold p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">الوسط المستهدف (سم)</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={draft.targetWaist || ''}
-                    onChange={(e) => setDraft({ ...draft, targetWaist: parseFloat(e.target.value) || null })}
-                    className="w-full text-xs font-bold p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-                  />
-                </div>
-              </div>
-
-              {/* Target Calories & Macros */}
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1">
-                    <Flame className="w-3.5 h-3.5 text-orange-500" />
-                    السعرات والماكروز اليومية المستهدفة
-                  </span>
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={draft.enableMacrosTracker ?? true}
-                      onChange={(e) => setDraft({ ...draft, enableMacrosTracker: e.target.checked })}
-                      className="rounded text-emerald-600"
-                    />
-                    تفعيل التتبع
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-4 gap-2">
-                  <div>
-                    <label className="block text-[10px] text-slate-400">السعرات</label>
-                    <input
-                      type="number"
-                      value={draft.targetCalories || ''}
-                      onChange={(e) => setDraft({ ...draft, targetCalories: parseInt(e.target.value, 10) || 0 })}
-                      className="w-full text-xs font-bold p-2 rounded-xl border bg-white dark:bg-slate-900"
-                    />
+            <div className="space-y-5">
+              {/* Presets & BMR Quick Shortcuts Banner */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/70 flex items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <FolderHeart className="w-6 h-6 text-emerald-600 shrink-0" />
+                    <div className="min-w-0">
+                      <span className="text-xs sm:text-sm font-black text-emerald-900 dark:text-emerald-200 block truncate">
+                        قوالب الخطط الطبية
+                      </span>
+                      <span className="text-[11px] sm:text-xs text-emerald-700/80 dark:text-emerald-300/80 block truncate">
+                        بدء الخطة من قالب إكلينيكي جاهز
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-400">بروتين (جم)</label>
-                    <input
-                      type="number"
-                      value={draft.targetProtein || ''}
-                      onChange={(e) => setDraft({ ...draft, targetProtein: parseInt(e.target.value, 10) || 0 })}
-                      className="w-full text-xs font-bold p-2 rounded-xl border bg-white dark:bg-slate-900"
-                    />
+                  <button
+                    type="button"
+                    onClick={() => setActiveSubTab('presets')}
+                    className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition-colors cursor-pointer shadow-2xs shrink-0 active:scale-95"
+                  >
+                    القوالب 📂
+                  </button>
+                </div>
+
+                <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-blue-500/10 to-indigo-500/10 border border-emerald-200 dark:border-emerald-900/60 flex items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Calculator className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <div className="min-w-0">
+                      <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 block truncate">
+                        حاسبة السعرات (معادلة سمر / معادلة خلود) ⚡
+                      </h4>
+                      <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 block truncate">
+                        حساب الاحتياج بالوزن المثالي أو معدل الحرق وعجز النزول وتطبيقها على الخطة
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-400">نشويات (جم)</label>
-                    <input
-                      type="number"
-                      value={draft.targetCarbs || ''}
-                      onChange={(e) => setDraft({ ...draft, targetCarbs: parseInt(e.target.value, 10) || 0 })}
-                      className="w-full text-xs font-bold p-2 rounded-xl border bg-white dark:bg-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-400">دهون (جم)</label>
-                    <input
-                      type="number"
-                      value={draft.targetFats || ''}
-                      onChange={(e) => setDraft({ ...draft, targetFats: parseInt(e.target.value, 10) || 0 })}
-                      className="w-full text-xs font-bold p-2 rounded-xl border bg-white dark:bg-slate-900"
-                    />
-                  </div>
+                  <button
+                    onClick={() => setShowBMRCalc(true)}
+                    className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition-colors shadow-2xs shrink-0 active:scale-95 cursor-pointer"
+                  >
+                    حاسبة السعرات ⚡
+                  </button>
                 </div>
               </div>
 
-              {/* Fasting Timer Settings */}
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1">
-                    <Timer className="w-3.5 h-3.5 text-violet-500" />
-                    مؤقت الصيام المتقطع
-                  </span>
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-violet-600 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={draft.enableFastingTimer ?? true}
-                      onChange={(e) => setDraft({ ...draft, enableFastingTimer: e.target.checked })}
-                      className="rounded text-violet-600"
-                    />
-                    تفعيل المؤقت
-                  </label>
+              {/* Main Profile Grid: Left Column (Basics & PIN) + Right Column (Calories & Fasting) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+                
+                {/* Column 1: Patient Basic Info & Target Measurements + PIN */}
+                <div className="space-y-4">
+                  {/* Patient Basic Info Card */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/60 pb-2.5">
+                      <h4 className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <User className="w-4 h-4 text-emerald-600" />
+                        بيانات المتدرب والقياسات الأساسية
+                      </h4>
+                      <HelpButton featureId="coachProfile" size="sm" />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">اسم المتدرب</label>
+                      <input
+                        type="text"
+                        value={draft.clientName || ''}
+                        onChange={(e) => setDraft({ ...draft, clientName: e.target.value })}
+                        placeholder="مثال: سارة أحمد"
+                        className="w-full text-xs sm:text-sm font-bold min-h-[44px] p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div>
+                        <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">الطول (سم)</label>
+                        <input
+                          type="number"
+                          value={draft.heightCm || ''}
+                          onChange={(e) => setDraft({ ...draft, heightCm: parseFloat(e.target.value) || null })}
+                          placeholder="170"
+                          className="w-full text-xs sm:text-sm font-bold min-h-[44px] p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">وزن البداية (كجم)</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={draft.startWeight || ''}
+                          onChange={(e) => setDraft({ ...draft, startWeight: parseFloat(e.target.value) || null })}
+                          placeholder="85"
+                          className="w-full text-xs sm:text-sm font-bold min-h-[44px] p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div>
+                        <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">الوزن المستهدف (كجم)</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={draft.targetWeight || ''}
+                          onChange={(e) => setDraft({ ...draft, targetWeight: parseFloat(e.target.value) || null })}
+                          placeholder="68"
+                          className="w-full text-xs sm:text-sm font-bold min-h-[44px] p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">الوسط المستهدف (سم)</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={draft.targetWaist || ''}
+                          onChange={(e) => setDraft({ ...draft, targetWaist: parseFloat(e.target.value) || null })}
+                          placeholder="75"
+                          className="w-full text-xs sm:text-sm font-bold min-h-[44px] p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Free Days & Admin PIN Card */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 space-y-3.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div>
+                        <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">أيام الفري شهرياً (Freeze Days)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="10"
+                          value={draft.freezeDaysPerMonth ?? 2}
+                          onChange={(e) => setDraft({ ...draft, freezeDaysPerMonth: parseInt(e.target.value, 10) || 0 })}
+                          className="w-full text-xs sm:text-sm font-bold min-h-[44px] p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">رمز PIN السري للطبيبة (Doctor PIN)</label>
+                        <input
+                          type="text"
+                          maxLength={8}
+                          value={draft.adminPin || '32184'}
+                          onChange={(e) => setDraft({ ...draft, adminPin: e.target.value })}
+                          className="w-full text-xs sm:text-sm font-bold min-h-[44px] p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">ساعات الصيام المستهدفة:</span>
-                  <input
-                    type="number"
-                    min="12"
-                    max="24"
-                    value={draft.fastingTargetHours || 16}
-                    onChange={(e) => setDraft({ ...draft, fastingTargetHours: parseInt(e.target.value, 10) || 16 })}
-                    className="w-16 text-xs font-bold p-1.5 rounded-xl border bg-white dark:bg-slate-900 text-center"
-                  />
-                  <span className="text-xs text-slate-500">ساعة</span>
+
+                {/* Column 2: Target Calories & Macros + Fasting Intermittent Timer */}
+                <div className="space-y-4">
+                  {/* Target Calories & Macros Card */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/60 pb-2.5">
+                      <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <Flame className="w-4 h-4 text-orange-500" />
+                        السعرات والماكروز اليومية المستهدفة
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowBMRCalc(true)}
+                          className="text-[11px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 px-2.5 py-1 rounded-xl border border-emerald-200 dark:border-emerald-800 transition-colors flex items-center gap-1 cursor-pointer active:scale-95"
+                        >
+                          <Calculator className="w-3.5 h-3.5" />
+                          <span>معادلة سمر / خلود ⚡</span>
+                        </button>
+                        <label className="flex items-center gap-2 text-xs font-black text-emerald-600 dark:text-emerald-400 cursor-pointer min-h-[36px] px-2.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/40">
+                          <input
+                            type="checkbox"
+                            checked={draft.enableMacrosTracker ?? true}
+                            onChange={(e) => setDraft({ ...draft, enableMacrosTracker: e.target.checked })}
+                            className="w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer"
+                          />
+                          تفعيل التتبع
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 shadow-2xs">
+                        <label className="block text-[11px] font-black text-slate-500 mb-1">🔥 السعرات</label>
+                        <input
+                          type="number"
+                          value={draft.targetCalories || ''}
+                          onChange={(e) => setDraft({ ...draft, targetCalories: parseInt(e.target.value, 10) || 0 })}
+                          placeholder="2000"
+                          className="w-full text-sm sm:text-base font-black p-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 text-center"
+                        />
+                      </div>
+                      <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 shadow-2xs">
+                        <label className="block text-[11px] font-black text-emerald-600 mb-1">🥩 بروتين (جم)</label>
+                        <input
+                          type="number"
+                          value={draft.targetProtein || ''}
+                          onChange={(e) => setDraft({ ...draft, targetProtein: parseInt(e.target.value, 10) || 0 })}
+                          placeholder="150"
+                          className="w-full text-sm sm:text-base font-black p-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 text-center"
+                        />
+                      </div>
+                      <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 shadow-2xs">
+                        <label className="block text-[11px] font-black text-amber-600 mb-1">🌾 نشويات (جم)</label>
+                        <input
+                          type="number"
+                          value={draft.targetCarbs || ''}
+                          onChange={(e) => setDraft({ ...draft, targetCarbs: parseInt(e.target.value, 10) || 0 })}
+                          placeholder="180"
+                          className="w-full text-sm sm:text-base font-black p-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 text-center"
+                        />
+                      </div>
+                      <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 shadow-2xs">
+                        <label className="block text-[11px] font-black text-purple-600 mb-1">🥑 دهون (جم)</label>
+                        <input
+                          type="number"
+                          value={draft.targetFats || ''}
+                          onChange={(e) => setDraft({ ...draft, targetFats: parseInt(e.target.value, 10) || 0 })}
+                          placeholder="60"
+                          className="w-full text-sm sm:text-base font-black p-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 text-center"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Fasting Timer Settings Card */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/60 pb-2.5">
+                      <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <Timer className="w-4 h-4 text-violet-500" />
+                        مؤقت الصيام المتقطع
+                      </span>
+                      <label className="flex items-center gap-2 text-xs font-black text-violet-600 dark:text-violet-400 cursor-pointer min-h-[36px] px-2.5 rounded-lg hover:bg-violet-50 dark:hover:bg-violet-950/40">
+                        <input
+                          type="checkbox"
+                          checked={draft.enableFastingTimer ?? true}
+                          onChange={(e) => setDraft({ ...draft, enableFastingTimer: e.target.checked })}
+                          className="w-4 h-4 rounded text-violet-600 accent-violet-600 cursor-pointer"
+                        />
+                        تفعيل المؤقت
+                      </label>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-2xs">
+                      <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300">ساعات الصيام المستهدفة:</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="12"
+                          max="24"
+                          value={draft.fastingTargetHours || 16}
+                          onChange={(e) => setDraft({ ...draft, fastingTargetHours: parseInt(e.target.value, 10) || 16 })}
+                          className="w-24 min-h-[42px] text-sm sm:text-base font-black p-2 rounded-xl border bg-slate-50 dark:bg-slate-800 text-center text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700"
+                        />
+                        <span className="text-xs sm:text-sm font-black text-slate-500">ساعة</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* TAB: Clinical Calculators Suite View */}
+          {activeSubTab === 'calculators' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border border-emerald-200 dark:border-emerald-900/60 flex flex-col justify-between gap-3 shadow-2xs">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                        <Calculator className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        حاسبة السعرات (معادلة سمر + معادلة خلود) ⚡
+                      </h4>
+                      <span className="text-[10px] font-black bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded-md">
+                        معتمدة للعيادة
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1">
+                      «معادلة سمر» بالوزن المثالي ومعامل النشاط، و«معادلة خلود» بمعدل REE وTDEE وأهداف النزول (-500 / -1000) مع تطبيق الماكروز مباشرة على الخطة.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowBMRCalc(true)}
+                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                  >
+                    <Calculator className="w-4 h-4" />
+                    <span>فتح حاسبة السعرات (سمر / خلود) ⚡</span>
+                  </button>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-indigo-500/10 border border-cyan-200 dark:border-cyan-900/60 flex flex-col justify-between gap-3 shadow-2xs">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs sm:text-sm font-black text-cyan-950 dark:text-cyan-200 flex items-center gap-1.5">
+                        <Activity className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                        جناح القياسات الإكلينيكية الكامل 🚀
+                      </h4>
+                      <HelpButton featureId="coachCalculators" size="sm" />
+                    </div>
+                    <p className="text-[11px] text-cyan-800/90 dark:text-cyan-300 mt-1">
+                      مقارنة معادلات الحرق، نسبة الدهون بطريقة الشريط (US Navy)، احتياج السوائل، والجدول الزمني للهدف.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowClinicalSuite(true)}
+                    className="w-full py-2.5 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-black text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                  >
+                    <Activity className="w-4 h-4" />
+                    <span>فتح الجناح الإكلينيكي المتقدم 🚀</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">أيام الفري شهرياً</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="10"
-                    value={draft.freezeDaysPerMonth ?? 2}
-                    onChange={(e) => setDraft({ ...draft, freezeDaysPerMonth: parseInt(e.target.value, 10) || 0 })}
-                    className="w-full text-xs font-bold p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-                  />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">الوزن الحالي للمتدرب:</span>
+                    <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">{draft.startWeight || 0} كجم</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">الطول الحالي:</span>
+                    <span className="text-xs font-black text-blue-600 dark:text-blue-400">{draft.heightCm || 0} سم</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">السعرات المقررة حالياً:</span>
+                    <span className="text-xs font-black text-amber-600 dark:text-amber-400">{draft.targetCalories || 2000} ك.س</span>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">رمز PIN السري للكابتن</label>
-                  <input
-                    type="text"
-                    maxLength={8}
-                    value={draft.adminPin || '1234'}
-                    onChange={(e) => setDraft({ ...draft, adminPin: e.target.value })}
-                    className="w-full text-xs font-bold p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-                  />
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">بروتين:</span>
+                    <span className="text-xs font-black text-rose-600 dark:text-rose-400">{draft.targetProtein || 120} جم</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">كاربوهيدرات:</span>
+                    <span className="text-xs font-black text-amber-600 dark:text-amber-400">{draft.targetCarbs || 180} جم</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">دهون صحية:</span>
+                    <span className="text-xs font-black text-purple-600 dark:text-purple-400">{draft.targetFats || 50} جم</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -854,38 +1229,74 @@ export const CoachModal: React.FC<CoachModalProps> = ({
 
           {/* TAB: Medical Conditions & Diagnoses */}
           {activeSubTab === 'medical' && (
-            <MedicalConditionsEditor
-              draft={draft}
-              onUpdateDraft={setDraft}
-              onNotify={onNotify}
-            />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <Stethoscope className="w-4 h-4 text-teal-600" />
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-100">سجل الحالات المرضية والتنبيهات الإكلينيكية</span>
+                  <HelpButton featureId="coachMedical" size="sm" />
+                </div>
+              </div>
+              <MedicalConditionsEditor
+                draft={draft}
+                onUpdateDraft={setDraft}
+                onNotify={onNotify}
+              />
+            </div>
           )}
 
           {/* TAB: Medications & Interactions */}
           {activeSubTab === 'medications' && (
-            <MedicationsManager
-              draft={draft}
-              onUpdateDraft={setDraft}
-              onNotify={onNotify}
-            />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <Pill className="w-4 h-4 text-indigo-600" />
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-100">سجل الأدوية والمكملات والتعارضات الغذائية</span>
+                  <HelpButton featureId="coachMedications" size="sm" />
+                </div>
+              </div>
+              <MedicationsManager
+                draft={draft}
+                onUpdateDraft={setDraft}
+                onNotify={onNotify}
+              />
+            </div>
           )}
 
           {/* TAB: Menstrual Cycle Tracking */}
           {activeSubTab === 'cycle' && (
-            <CycleTrackingManager
-              draft={draft}
-              onUpdateDraft={setDraft}
-              onNotify={onNotify}
-            />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-rose-500" />
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-100">تتبع الدورة الشهرية والمراحل الهرمونية</span>
+                  <HelpButton featureId="coachCycle" size="sm" />
+                </div>
+              </div>
+              <CycleTrackingManager
+                draft={draft}
+                onUpdateDraft={setDraft}
+                onNotify={onNotify}
+              />
+            </div>
           )}
 
           {/* TAB: Lab Tests Tracking */}
           {activeSubTab === 'labs' && (
-            <LabTrackingManager
-              draft={draft}
-              onUpdateDraft={setDraft}
-              onNotify={onNotify}
-            />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-teal-600" />
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-100">سجل التحاليل الطبية والنطاقات الحيوية</span>
+                  <HelpButton featureId="coachLabs" size="sm" />
+                </div>
+              </div>
+              <LabTrackingManager
+                draft={draft}
+                onUpdateDraft={setDraft}
+                onNotify={onNotify}
+              />
+            </div>
           )}
 
           {/* TAB 2: Meals & Alternatives */}
@@ -893,30 +1304,33 @@ export const CoachModal: React.FC<CoachModalProps> = ({
             <div className="space-y-4">
               {/* Header Mode Selector & Actions */}
               <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => setMealEditMode('exchanges')}
-                    className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                      mealEditMode === 'exchanges'
-                        ? 'bg-emerald-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
-                    }`}
-                  >
-                    📊 نظام بدائل الأغذية الإكلينيكي
-                  </button>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 flex-1 sm:flex-none">
+                    <button
+                      type="button"
+                      onClick={() => setMealEditMode('exchanges')}
+                      className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                        mealEditMode === 'exchanges'
+                          ? 'bg-emerald-600 text-white shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                      }`}
+                    >
+                      📊 نظام بدائل الأغذية الإكلينيكي
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setMealEditMode('manual')}
-                    className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                      mealEditMode === 'manual'
-                        ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
-                    }`}
-                  >
-                    📝 التعديل اليدوي المباشر
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setMealEditMode('manual')}
+                      className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                        mealEditMode === 'manual'
+                          ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                      }`}
+                    >
+                      📝 التعديل اليدوي المباشر
+                    </button>
+                  </div>
+                  <HelpButton featureId="coachMeals" size="sm" />
                 </div>
 
                 <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
@@ -938,7 +1352,6 @@ export const CoachModal: React.FC<CoachModalProps> = ({
                 <MealExchangePlanner
                   draft={draft}
                   coachSessionUnlocked={coachSessionUnlocked}
-                  coachToken={coachToken}
                   onUpdateDraft={setDraft}
                   onNotify={onNotify}
                 />
@@ -1014,168 +1427,195 @@ export const CoachModal: React.FC<CoachModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: Habits & Supplements & Tips */}
+          {/* TAB 3: Habits & Supplements & Tips (Spacious 3-Column Responsive Grid) */}
           {activeSubTab === 'habits' && (
             <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    المهام والعادات اليومية ({draft.checklist.length})
-                  </span>
-                  <button
-                    onClick={handleAddCheck}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-xs flex items-center gap-1"
-                  >
-                    <Plus className="w-3 h-3" />
-                    إضافة عادة
-                  </button>
-                </div>
-                {draft.checklist.map((c, idx) => (
-                  <div key={c.id || idx} className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      value={c.label}
-                      onChange={(e) => {
-                        const updated = [...draft.checklist];
-                        updated[idx].label = e.target.value;
-                        setDraft({ ...draft, checklist: updated });
-                      }}
-                      className="flex-1 text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-                    />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+                
+                {/* Column 1: Daily Habits & Checklist */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 space-y-3.5 shadow-2xs">
+                  <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/60 pb-2.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 truncate">
+                        المهام والعادات اليومية ({draft.checklist.length})
+                      </span>
+                      <HelpButton featureId="coachHabits" size="sm" />
+                    </div>
                     <button
-                      onClick={() => handleRemoveCheck(idx)}
-                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg"
+                      onClick={handleAddCheck}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95 shrink-0"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Plus className="w-3.5 h-3.5" />
+                      إضافة
                     </button>
                   </div>
-                ))}
-              </div>
+                  <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                    {draft.checklist.map((c, idx) => (
+                      <div key={c.id || idx} className="flex gap-2 items-center bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                        <input
+                          type="text"
+                          value={c.label}
+                          onChange={(e) => {
+                            const updated = [...draft.checklist];
+                            updated[idx].label = e.target.value;
+                            setDraft({ ...draft, checklist: updated });
+                          }}
+                          className="flex-1 text-xs sm:text-sm font-medium p-2 rounded-lg bg-transparent text-slate-800 dark:text-slate-100 focus:outline-hidden"
+                          placeholder="نص العادة أو المهمة..."
+                        />
+                        <button
+                          onClick={() => handleRemoveCheck(idx)}
+                          className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg cursor-pointer"
+                          title="حذف العادة"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-              {/* Supplements */}
-              <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-purple-700 dark:text-purple-300">
-                    المكملات والفيتامينات ({draft.supplements?.length || 0})
-                  </span>
-                  <button
-                    onClick={handleAddSupp}
-                    className="px-2.5 py-1 rounded-lg bg-purple-600 text-white font-bold text-xs flex items-center gap-1"
-                  >
-                    <Plus className="w-3 h-3" />
-                    إضافة مكمل
-                  </button>
-                </div>
-                {(draft.supplements || []).map((s, idx) => (
-                  <div key={s.id || idx} className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      value={s.name}
-                      onChange={(e) => {
-                        const updated = [...draft.supplements];
-                        updated[idx].name = e.target.value;
-                        setDraft({ ...draft, supplements: updated });
-                      }}
-                      className="flex-1 text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-                      placeholder="اسم المكمل"
-                    />
-                    <input
-                      type="text"
-                      value={s.time || ''}
-                      onChange={(e) => {
-                        const updated = [...draft.supplements];
-                        updated[idx].time = e.target.value;
-                        setDraft({ ...draft, supplements: updated });
-                      }}
-                      className="w-24 text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-                      placeholder="التوقيت"
-                    />
+                {/* Column 2: Supplements & Vitamins */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 space-y-3.5 shadow-2xs">
+                  <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/60 pb-2.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Pill className="w-4 h-4 text-purple-600 shrink-0" />
+                      <span className="text-xs sm:text-sm font-black text-purple-800 dark:text-purple-300 truncate">
+                        المكملات والفيتامينات ({draft.supplements?.length || 0})
+                      </span>
+                    </div>
                     <button
-                      onClick={() => handleRemoveSupp(idx)}
-                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg"
+                      onClick={handleAddSupp}
+                      className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95 shrink-0"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Plus className="w-3.5 h-3.5" />
+                      إضافة
                     </button>
                   </div>
-                ))}
-              </div>
+                  <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                    {(draft.supplements || []).map((s, idx) => (
+                      <div key={s.id || idx} className="flex gap-2 items-center bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                        <input
+                          type="text"
+                          value={s.name}
+                          onChange={(e) => {
+                            const updated = [...draft.supplements];
+                            updated[idx].name = e.target.value;
+                            setDraft({ ...draft, supplements: updated });
+                          }}
+                          className="flex-1 text-xs sm:text-sm font-medium p-2 rounded-lg bg-transparent text-slate-800 dark:text-slate-100 focus:outline-hidden"
+                          placeholder="اسم المكمل..."
+                        />
+                        <input
+                          type="text"
+                          value={s.time || ''}
+                          onChange={(e) => {
+                            const updated = [...draft.supplements];
+                            updated[idx].time = e.target.value;
+                            setDraft({ ...draft, supplements: updated });
+                          }}
+                          className="w-24 text-xs font-bold p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-center"
+                          placeholder="التوقيت"
+                        />
+                        <button
+                          onClick={() => handleRemoveSupp(idx)}
+                          className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg cursor-pointer"
+                          title="حذف المكمل"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-              {/* Tips */}
-              <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                    نصائح وتوجيهات الكابتن ({draft.tips?.length || 0})
-                  </span>
-                  <button
-                    onClick={handleAddTip}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-xs flex items-center gap-1"
-                  >
-                    <Plus className="w-3 h-3" />
-                    إضافة نصيحة
-                  </button>
-                </div>
-                {(draft.tips || []).map((t, idx) => (
-                  <div key={idx} className="flex gap-2 items-center">
-                    <input
-                      type="text"
-                      value={t}
-                      onChange={(e) => {
-                        const updated = [...draft.tips];
-                        updated[idx] = e.target.value;
-                        setDraft({ ...draft, tips: updated });
-                      }}
-                      className="flex-1 text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
-                    />
+                {/* Column 3: Doctor's Guidance & Tips */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-slate-800/70 border border-slate-200/90 dark:border-slate-700 space-y-3.5 shadow-2xs">
+                  <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/60 pb-2.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Lightbulb className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="text-xs sm:text-sm font-black text-emerald-800 dark:text-emerald-300 truncate">
+                        نصائح وتوجيهات الطبيبة ({draft.tips?.length || 0})
+                      </span>
+                    </div>
                     <button
-                      onClick={() => handleRemoveTip(idx)}
-                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg"
+                      onClick={handleAddTip}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95 shrink-0"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Plus className="w-3.5 h-3.5" />
+                      إضافة
                     </button>
                   </div>
-                ))}
+                  <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                    {(draft.tips || []).map((t, idx) => (
+                      <div key={idx} className="flex gap-2 items-center bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                        <input
+                          type="text"
+                          value={t}
+                          onChange={(e) => {
+                            const updated = [...draft.tips];
+                            updated[idx] = e.target.value;
+                            setDraft({ ...draft, tips: updated });
+                          }}
+                          className="flex-1 text-xs sm:text-sm font-medium p-2 rounded-lg bg-transparent text-slate-800 dark:text-slate-100 focus:outline-hidden"
+                          placeholder="نص التوجيه أو النصيحة..."
+                        />
+                        <button
+                          onClick={() => handleRemoveTip(idx)}
+                          className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg cursor-pointer"
+                          title="حذف النصيحة"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
               </div>
             </div>
           )}
 
-          {/* TAB 4: Sections Customization */}
+          {/* TAB 4: Sections Customization (Spacious 2-Column Responsive Grid) */}
           {activeSubTab === 'sections' && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {/* Header & Quick Presets */}
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 border border-emerald-200 dark:border-emerald-900/60 space-y-2.5">
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 border border-emerald-200 dark:border-emerald-900/60 space-y-3 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                    <h4 className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                       <LayoutGrid className="w-4 h-4 text-emerald-600" />
-                      تخصيص لوحات صفحة المتدرب
+                      تخصيص لوحات وأقسام صفحة المتدرب
                     </h4>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      يمكنك إخفاء أو إظهار أي لوحة أو عنصر في واجهة العميل بضغطة واحدة
+                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      يمكنك إخفاء أو إظهار أي لوحة أو عنصر في واجهة المتدرب بضغطة واحدة لتحقيق البساطة والتركيز
                     </p>
                   </div>
+                  <HelpButton featureId="coachSections" size="sm" />
                 </div>
 
                 {/* Quick Presets Buttons */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
+                <div className="flex flex-wrap gap-2 pt-1">
                   <button
                     onClick={() => handleSetAllSections(true)}
-                    className="px-2.5 py-1 rounded-xl bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 transition-colors shadow-2xs flex items-center gap-1"
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95"
                   >
-                    <Eye className="w-3 h-3" />
+                    <Eye className="w-3.5 h-3.5" />
                     إظهار كافة اللوحات
                   </button>
                   <button
                     onClick={handleSetMinimalSections}
-                    className="px-2.5 py-1 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[11px] hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors flex items-center gap-1"
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5 cursor-pointer active:scale-95"
                   >
-                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                     الوضع المبسط (وجبات وماء فقط)
                   </button>
                 </div>
               </div>
 
-              {/* Categorized Panels List */}
-              <div className="space-y-4">
+              {/* Categorized Panels List in 2-Column Responsive Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 {[
                   {
                     title: '1. اللوحات الرئيسية والتنبيهات',
@@ -1317,12 +1757,12 @@ export const CoachModal: React.FC<CoachModalProps> = ({
                     ],
                   },
                 ].map((grp) => (
-                  <div key={grp.title} className="space-y-2">
-                    <h5 className="text-xs font-bold text-slate-700 dark:text-slate-300 px-1">
+                  <div key={grp.title} className="p-4 sm:p-5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-3 shadow-2xs">
+                    <h5 className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 border-b border-slate-200/60 dark:border-slate-700/60 pb-2">
                       {grp.title}
                     </h5>
 
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       {grp.items.map((item) => {
                         const isVisible = isSectionVisible(draft, item.key);
                         return (
@@ -1331,37 +1771,37 @@ export const CoachModal: React.FC<CoachModalProps> = ({
                             onClick={() => handleToggleSection(item.key)}
                             className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                               isVisible
-                                ? 'bg-slate-50/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-600'
-                                : 'bg-slate-100/40 dark:bg-slate-900/40 border-dashed border-slate-200 dark:border-slate-800 opacity-60 hover:opacity-90'
+                                ? 'bg-white dark:bg-slate-850 border-slate-200/90 dark:border-slate-700 shadow-2xs hover:border-emerald-400 dark:hover:border-emerald-600'
+                                : 'bg-slate-100/50 dark:bg-slate-900/40 border-dashed border-slate-200 dark:border-slate-800 opacity-60 hover:opacity-90'
                             }`}
                           >
-                            <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                                 isVisible 
-                                  ? 'bg-white dark:bg-slate-700 shadow-2xs' 
+                                  ? 'bg-slate-100 dark:bg-slate-750 shadow-2xs' 
                                   : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
                               }`}>
                                 {item.icon}
                               </div>
 
                               <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span className={`text-xs font-bold block truncate ${
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className={`text-xs sm:text-sm font-black block truncate ${
                                     isVisible ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'
                                   }`}>
                                     {item.label}
                                   </span>
                                   {isVisible ? (
-                                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                                       ظاهرة
                                     </span>
                                   ) : (
-                                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                                       مخفية
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
                                   {item.desc}
                                 </p>
                               </div>
@@ -1391,16 +1831,19 @@ export const CoachModal: React.FC<CoachModalProps> = ({
             </div>
           )}
 
-          {/* TAB 5: Score Weights */}
+          {/* TAB 5: Score Weights (Spacious 4-Column Responsive Grid) */}
           {activeSubTab === 'weights' && (
-            <div className="space-y-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                حدد النسبة المئوية لتأثير كل محور على تقييم الالتزام اليومي الإجمالي:
-              </p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <p className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300">
+                  حدد النسبة المئوية لتأثير كل محور على تقييم الالتزام اليومي الإجمالي للمتدرب:
+                </p>
+                <HelpButton featureId="coachWeights" size="sm" />
+              </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-slate-50/90 dark:bg-slate-800/80 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2 shadow-2xs">
+                  <label className="block text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100">
                     🍽️ الوجبات (%)
                   </label>
                   <input
@@ -1414,12 +1857,12 @@ export const CoachModal: React.FC<CoachModalProps> = ({
                         scoreWeights: { ...draft.scoreWeights, meals: parseInt(e.target.value, 10) || 0 },
                       })
                     }
-                    className="w-full text-xs font-bold p-2 rounded-lg border bg-white dark:bg-slate-900"
+                    className="w-full text-sm sm:text-base font-black p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-center"
                   />
                 </div>
 
-                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
+                <div className="bg-slate-50/90 dark:bg-slate-800/80 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2 shadow-2xs">
+                  <label className="block text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100">
                     💧 شرب المية (%)
                   </label>
                   <input
@@ -1433,12 +1876,12 @@ export const CoachModal: React.FC<CoachModalProps> = ({
                         scoreWeights: { ...draft.scoreWeights, water: parseInt(e.target.value, 10) || 0 },
                       })
                     }
-                    className="w-full text-xs font-bold p-2 rounded-lg border bg-white dark:bg-slate-900"
+                    className="w-full text-sm sm:text-base font-black p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-center"
                   />
                 </div>
 
-                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
+                <div className="bg-slate-50/90 dark:bg-slate-800/80 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2 shadow-2xs">
+                  <label className="block text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100">
                     ✅ العادات والمهام (%)
                   </label>
                   <input
@@ -1452,12 +1895,12 @@ export const CoachModal: React.FC<CoachModalProps> = ({
                         scoreWeights: { ...draft.scoreWeights, checklist: parseInt(e.target.value, 10) || 0 },
                       })
                     }
-                    className="w-full text-xs font-bold p-2 rounded-lg border bg-white dark:bg-slate-900"
+                    className="w-full text-sm sm:text-base font-black p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-center"
                   />
                 </div>
 
-                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">
+                <div className="bg-slate-50/90 dark:bg-slate-800/80 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2 shadow-2xs">
+                  <label className="block text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100">
                     😴 النوم والراحة (%)
                   </label>
                   <input
@@ -1471,209 +1914,315 @@ export const CoachModal: React.FC<CoachModalProps> = ({
                         scoreWeights: { ...draft.scoreWeights, sleep: parseInt(e.target.value, 10) || 0 },
                       })
                     }
-                    className="w-full text-xs font-bold p-2 rounded-lg border bg-white dark:bg-slate-900"
+                    className="w-full text-sm sm:text-base font-black p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-center"
                   />
                 </div>
               </div>
 
-              <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 text-xs font-bold text-center">
+              <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 text-xs sm:text-sm font-black text-center border border-emerald-200 dark:border-emerald-800/60 shadow-2xs">
                 إجمالي الأوزان الحالية: {(draft.scoreWeights.checklist || 0) + (draft.scoreWeights.water || 0) + (draft.scoreWeights.sleep || 0) + (draft.scoreWeights.meals || 0)}%
               </div>
             </div>
           )}
 
-          {/* TAB 5: Backup & Share */}
+          {/* TAB 6: Backup & Share (Spacious 2-Column Responsive Grid) */}
           {activeSubTab === 'backup' && (
-            <div className="space-y-3">
-              <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-emerald-900 dark:text-emerald-200 text-xs flex items-center gap-1.5">
-                    <Share2 className="w-4 h-4 text-emerald-600" />
-                    تصدير الخطة الشاملة للمتدرب (واتساب)
-                  </h4>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200/70 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300">
-                    تشمل جميع الإعدادات والتوجيهات
-                  </span>
-                </div>
-                <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300 leading-relaxed">
-                  يقوم هذا الخيار بإنشاء رسالة واتساب منسقة ومفصلة تتضمن إرشادات د. شيماء، جدول الوجبات والبدائل، السعرات والماكروز، هدف الماء، المكملات، وكود المزامنة التلقائي، ليقوم المتدرب بنسخها وتطبيقها بنقرة واحدة داخل تطبيقه.
-                </p>
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+                
+                {/* Column 1: WhatsApp Export Options & Sync Code */}
+                <div className="space-y-4">
+                  {/* Option 1: Detailed Readable Plan (No Code) */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between border-b border-emerald-200/80 dark:border-emerald-800/80 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="font-black text-emerald-950 dark:text-emerald-200 text-xs sm:text-sm">
+                            1. إرسال الخطة الشاملة المكتوبة (بدون كود)
+                          </h4>
+                          <span className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                            مفصلة بالعربي • سهلة القراءة • للموبايلات القديمة
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200/70 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300">
+                        نص عربي فقط
+                      </span>
+                    </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                  <button
-                    onClick={handleCopyPlanForWhatsApp}
-                    className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5 shadow-xs active:scale-98"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                    نسخ رسالة الواتساب الشاملة 📋
-                  </button>
+                    <p className="text-[11px] text-emerald-800/90 dark:text-emerald-300 leading-relaxed">
+                      نص الخطة المكتوبة بالتفصيل (الوجبات والبدائل، السعرات، الماكروز، هدف الماء، المكملات، والعادات) <strong>بدون كود المزامنة المشفر</strong>. مثالي للقراءة المباشرة على الواتساب وللأجهزة ذات الحافظة (Clipboard) المحدودة.
+                    </p>
 
-                  <button
-                    onClick={handleDirectWhatsAppShare}
-                    className="w-full py-2.5 px-3 rounded-xl bg-teal-700 text-white font-bold text-xs hover:bg-teal-800 transition-colors flex items-center justify-center gap-1.5 shadow-xs active:scale-98"
-                  >
-                    <Share2 className="w-3.5 h-3.5" />
-                    إرسال مباشر عبر واتساب 💬
-                  </button>
-                </div>
-
-                <div className="pt-1 flex items-center justify-end">
-                  <button
-                    onClick={handleCopyRawJson}
-                    className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1"
-                  >
-                    <Copy className="w-3 h-3" />
-                    نسخ كود JSON الخام فقط
-                  </button>
-                </div>
-              </div>
-
-              {/* Gemini Smart Weekly Message Draft Card */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-blue-500/10 border border-teal-200 dark:border-teal-800/80 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-teal-950 dark:text-teal-200 text-xs flex items-center gap-1.5">
-                    <Wand2 className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                    صياغة رسالة المتابعة الأسبوعية الذكية (د. شيماء) ✨
-                  </h4>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
-                    تحليل ذكي لآخر 7 أيام
-                  </span>
-                </div>
-                <p className="text-[11px] text-teal-900/80 dark:text-teal-300 leading-relaxed">
-                  يقوم الذكاء الاصطناعي بدراسة متوسط التزام المتدرب، تغير وزنه، شربه للماء، وتمارينه خلال آخر أسبوع لصياغة رسالة تشجيعية دافئة وتوجيه عملي مباشر للواتساب.
-                </p>
-
-                {coachWeeklyDraftText === null ? (
-                  <button
-                    type="button"
-                    disabled={isGeneratingWeeklyDraft}
-                    onClick={handleGenerateCoachWeeklyDraft}
-                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 disabled:opacity-50 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-98 transition-all"
-                  >
-                    {isGeneratingWeeklyDraft ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>جاري دراسة البيانات وصياغة المسودة...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Wand2 className="w-4 h-4 text-amber-200" />
-                        <span>صياغة مسودة المتابعة للأسبوع ✨</span>
-                      </>
-                    )}
-                  </button>
-                ) : (
-                  <div className="space-y-2.5 pt-1">
-                    <label className="block text-[10px] font-bold text-teal-900 dark:text-teal-300">
-                      مراجعة وتعديل نص الرسالة المقترح:
-                    </label>
-                    <textarea
-                      rows={7}
-                      value={coachWeeklyDraftText}
-                      onChange={(e) => setCoachWeeklyDraftText(e.target.value)}
-                      className="w-full text-xs p-3 rounded-xl border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 resize-none font-medium leading-relaxed shadow-inner"
-                      placeholder="مسودة الرسالة..."
-                    />
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                       <button
-                        type="button"
-                        onClick={() => {
-                          const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(coachWeeklyDraftText)}`;
-                          window.open(url, '_blank');
-                          onNotify('جاري فتح الواتساب بالمسودة 💬');
-                        }}
-                        className="py-2 px-3 rounded-xl bg-[#25D366] hover:bg-[#1EBE5D] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                        onClick={handleShareReadablePlanWhatsApp}
+                        className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 text-white font-black text-xs sm:text-sm hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 shadow-xs active:scale-98 cursor-pointer"
                       >
-                        <Send className="w-3.5 h-3.5" />
-                        <span>إرسال واتساب</span>
+                        <Share2 className="w-4 h-4" />
+                        إرسال الخطة بالواتساب 💬
                       </button>
 
                       <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(coachWeeklyDraftText).then(() => {
-                            onNotify('تم نسخ مسودة المتابعة بنجاح 📋');
-                          });
-                        }}
-                        className="py-2 px-3 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        onClick={handleCopyReadablePlan}
+                        className="w-full py-2.5 px-3 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-bold text-xs sm:text-sm hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors flex items-center justify-center gap-1.5 active:scale-98 cursor-pointer"
                       >
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>نسخ النص</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isGeneratingWeeklyDraft}
-                        onClick={handleGenerateCoachWeeklyDraft}
-                        className="py-2 px-3 rounded-xl bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-900 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span>إعادة التوليد</span>
+                        <Copy className="w-4 h-4" />
+                        نسخ الخطة المكتوبة 📋
                       </button>
                     </div>
                   </div>
-                )}
-              </div>
 
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
-                <h4 className="font-bold text-slate-800 dark:text-slate-100 text-xs flex items-center gap-1.5">
-                  <Download className="w-4 h-4 text-blue-500" />
-                  نسخ احتياطي واستعادة كاملة
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  حفظ أو استرجاع جميع السجلات اليومية والبيانات في ملف خارجي.
-                </p>
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button
-                    onClick={handleExportFullBackup}
-                    className="py-2 px-3 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    تصدير النسخة (JSON)
-                  </button>
+                  {/* Option 2: Sync Code Only */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-cyan-50/90 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800/80 space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between border-b border-cyan-200/80 dark:border-cyan-800/80 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-cyan-100 dark:bg-cyan-900 text-cyan-700 dark:text-cyan-300 flex items-center justify-center font-bold">
+                          <Smartphone className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="font-black text-cyan-950 dark:text-cyan-200 text-xs sm:text-sm">
+                            2. إرسال كود تفعيل الخطة للتطبيق فقط
+                          </h4>
+                          <span className="text-[10px] text-cyan-700 dark:text-cyan-400">
+                            كود تفعيل مشفر • خفيف وصغير الحجم • #START_PLAN_DATA#
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-cyan-200/70 dark:bg-cyan-900 text-cyan-800 dark:text-cyan-300">
+                        كود فقط
+                      </span>
+                    </div>
 
-                  <label className="py-2 px-3 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-300 transition-colors cursor-pointer flex items-center justify-center gap-1">
-                    <Upload className="w-3.5 h-3.5" />
-                    استيراد نسخة
-                    <input
-                      type="file"
-                      accept=".json"
-                      onChange={handleImportBackupFile}
-                      className="hidden"
-                    />
-                  </label>
+                    <p className="text-[11px] text-cyan-900/90 dark:text-cyan-300 leading-relaxed">
+                      يحتوي فقط على كود التفعيل الرقمي للخطة لتقوم المتدربة بنسخه ولصقه مباشرة في خانة <strong>"📥 إضافة خطة الدكتورة"</strong> داخل التطبيق، دون أي نصوص إضافية طويلة.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      <button
+                        onClick={handleShareSyncCodeWhatsApp}
+                        className="w-full py-2.5 px-3 rounded-xl bg-cyan-600 text-white font-black text-xs sm:text-sm hover:bg-cyan-700 transition-all flex items-center justify-center gap-1.5 shadow-xs active:scale-98 cursor-pointer"
+                      >
+                        <Share2 className="w-4 h-4" />
+                        إرسال الكود بالواتساب 📲
+                      </button>
+
+                      <button
+                        onClick={handleCopySyncCode}
+                        className="w-full py-2.5 px-3 rounded-xl bg-cyan-100 dark:bg-cyan-900/60 text-cyan-800 dark:text-cyan-200 font-bold text-xs sm:text-sm hover:bg-cyan-200 dark:hover:bg-cyan-800 transition-colors flex items-center justify-center gap-1.5 active:scale-98 cursor-pointer"
+                      >
+                        <Copy className="w-4 h-4" />
+                        نسخ كود التفعيل 🔑
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Option 3: Full Combined Message & JSON Direct */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2.5 text-xs">
+                    <div className="flex items-center justify-between text-slate-700 dark:text-slate-300 font-bold">
+                      <span>📦 الخطة الشاملة المدمجة (نص + كود معاً):</span>
+                      <span className="text-[10px] text-slate-400 font-normal">للأجهزة الحديثة</span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={handleShareFullPlanWhatsApp}
+                        className="flex-1 py-2 px-2.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-black text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>إرسال مدمجة</span>
+                      </button>
+
+                      <button
+                        onClick={handleCopyFullPlan}
+                        className="flex-1 py-2 px-2.5 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>نسخ مدمجة</span>
+                      </button>
+
+                      <button
+                        onClick={handleCopyRawJson}
+                        className="py-2 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 font-bold text-[11px] flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Code2 className="w-3.5 h-3.5" />
+                        <span>JSON</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <div className="pt-2">
-                <button
-                  onClick={handleResetToDefault}
-                  className="w-full py-2 px-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 font-bold text-xs hover:bg-rose-100 transition-colors flex items-center justify-center gap-1"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  استعادة الخطة الافتراضية
-                </button>
+                {/* Column 2: Weekly Follow-up Draft & Backup/Restore */}
+                <div className="space-y-4">
+                  {/* Weekly Message Draft Card */}
+                  <div className="p-5 rounded-2xl bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-blue-500/10 border border-teal-200 dark:border-teal-800/80 space-y-3.5 shadow-2xs">
+                    <div className="flex items-center justify-between border-b border-teal-200/80 dark:border-teal-800/80 pb-2.5">
+                      <h4 className="font-black text-teal-950 dark:text-teal-200 text-xs sm:text-sm flex items-center gap-1.5">
+                        <Wand2 className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                        صياغة رسالة المتابعة الأسبوعية (د. شيماء) 📋
+                      </h4>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                        تحليل 7 أيام
+                      </span>
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-teal-900/80 dark:text-teal-300 leading-relaxed">
+                      توليد رسالة تشجيعية وتوجيه عملي مباشر للواتساب بالاعتماد على التزام المتدرب، تغير وزنه، شربه للماء، وتمارينه خلال آخر أسبوع.
+                    </p>
+
+                    {coachWeeklyDraftText === null ? (
+                      <button
+                        type="button"
+                        onClick={handleGenerateCoachWeeklyDraft}
+                        className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98 transition-all"
+                      >
+                        <Wand2 className="w-4 h-4 text-amber-200" />
+                        <span>صياغة مسودة المتابعة للأسبوع 📋</span>
+                      </button>
+                    ) : (
+                      <div className="space-y-2.5 pt-1">
+                        <label className="block text-[10px] sm:text-xs font-black text-teal-900 dark:text-teal-300">
+                          مراجعة وتعديل نص الرسالة المقترح:
+                        </label>
+                        <textarea
+                          rows={6}
+                          value={coachWeeklyDraftText}
+                          onChange={(e) => setCoachWeeklyDraftText(e.target.value)}
+                          className="w-full text-xs sm:text-sm p-3 rounded-xl border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 resize-none font-medium leading-relaxed shadow-inner"
+                          placeholder="مسودة الرسالة..."
+                        />
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(coachWeeklyDraftText)}`;
+                              window.open(url, '_blank');
+                              onNotify('جاري فتح الواتساب بالمسودة 💬');
+                            }}
+                            className="py-2.5 px-3 rounded-xl bg-[#25D366] hover:bg-[#1EBE5D] text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            <span>إرسال واتساب</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(coachWeeklyDraftText).then(() => {
+                                onNotify('تم نسخ مسودة المتابعة بنجاح 📋');
+                              });
+                            }}
+                            className="py-2.5 px-3 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 font-black text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>نسخ النص</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleGenerateCoachWeeklyDraft}
+                            className="py-2.5 px-3 rounded-xl bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-900 font-black text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>إعادة التوليد</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Full JSON Backup & Restore + Reset */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/90 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3 shadow-2xs">
+                    <h4 className="font-black text-slate-800 dark:text-slate-100 text-xs sm:text-sm flex items-center gap-2">
+                      <Download className="w-4 h-4 text-blue-500" />
+                      نسخ احتياطي واستعادة كاملة
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      حفظ أو استرجاع جميع السجلات اليومية والبيانات في ملف خارجي.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2.5 pt-1">
+                      <button
+                        onClick={handleExportFullBackup}
+                        className="py-2.5 px-3 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        تصدير (JSON)
+                      </button>
+
+                      <label className="py-2.5 px-3 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-300 transition-colors cursor-pointer flex items-center justify-center gap-1.5">
+                        <Upload className="w-3.5 h-3.5" />
+                        استيراد نسخة
+                        <input
+                          type="file"
+                          accept=".json"
+                          onChange={handleImportBackupFile}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                      <button
+                        onClick={handleResetToDefault}
+                        className="w-full py-2.5 px-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 font-bold text-xs hover:bg-rose-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        استعادة الخطة الافتراضية
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
               </div>
             </div>
           )}
         </div>
 
-        {/* Footer actions */}
-        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2 mt-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            إلغاء
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs"
-          >
-            <Save className="w-4 h-4" />
-            حفظ التعديلات
-          </button>
+        {/* Sticky Mobile-First Footer Actions Bar */}
+        <div className={isPageMode ? "fixed bottom-0 left-0 right-0 z-40 p-3 sm:p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/90 dark:border-slate-800 flex items-center justify-between gap-2.5 shadow-lg" : "p-3 sm:p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/90 dark:border-slate-800 flex items-center justify-between gap-2.5 shrink-0 z-20 shadow-lg"}>
+          {isPageMode ? (
+            <button
+              type="button"
+              onClick={onNavigateClient}
+              className="min-h-[44px] h-12 px-3 sm:px-4 rounded-2xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 bg-slate-100/80 dark:bg-slate-800/80 transition-all cursor-pointer active:scale-95 shrink-0 flex items-center gap-1.5"
+            >
+              <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span className="hidden xs:inline">معاينة العميل</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-h-[44px] h-12 px-4 rounded-2xl text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 bg-slate-100/80 dark:bg-slate-800/80 transition-all cursor-pointer active:scale-95 shrink-0"
+            >
+              إلغاء
+            </button>
+          )}
+          
+          <div className="flex items-center gap-2 flex-1 justify-end">
+            <button
+              type="button"
+              onClick={() => setShowShareOptionsModal(true)}
+              className="min-h-[44px] h-12 px-3 sm:px-4 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shrink-0"
+              title="خيارات إرسال الخطة عبر واتساب"
+            >
+              <Share2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden xs:inline">إرسال واتساب</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSave}
+              className="min-h-[44px] h-12 flex-1 sm:flex-none sm:px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-98"
+            >
+              <Save className="w-4 h-4" />
+              <span>حفظ وتطبيق الخطة</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1920,8 +2469,32 @@ export const CoachModal: React.FC<CoachModalProps> = ({
         />
       )}
 
+      {/* BMR Calculator Modal (معادلة سمر + معادلة خلود ⚡) */}
+      {showBMRCalc && (
+        <BMRCalculatorModal
+          initialWeight={draft.startWeight || 70}
+          initialHeight={draft.heightCm || 170}
+          initialAge={28}
+          initialGender={draft.cycleTracking?.enabled ? 'female' : 'male'}
+          defaultMethod="samar"
+          onApplyCalories={(calories, protein, carbs, fats, notes) => {
+            setDraft((prev) => ({
+              ...prev,
+              targetCalories: calories,
+              targetProtein: protein,
+              targetCarbs: carbs,
+              targetFats: fats,
+              ...(notes ? { notes: prev.notes ? `${prev.notes}\n• ${notes}` : notes } : {}),
+            }));
+            onNotify(`تم تطبيق السعرات (${calories} ك.س) والماكروز بنجاح على الخطة ⚡`);
+            setShowBMRCalc(false);
+          }}
+          onClose={() => setShowBMRCalc(false)}
+        />
+      )}
+
       {/* Clinical Calculator Suite Modal */}
-      {(showBMRCalc || activeSubTab === 'calculators') && (
+      {showClinicalSuite && (
         <ClinicalCalculatorSuiteModal
           initialWeight={draft.startWeight || 80}
           initialHeight={draft.heightCm || 175}
@@ -1936,14 +2509,181 @@ export const CoachModal: React.FC<CoachModalProps> = ({
               ...(notesInfo ? { notes: prev.notes ? `${prev.notes}\n\n${notesInfo}` : notesInfo } : {}),
             }));
             onNotify(`تم تطبيق السعرات الإكلينيكية (${calories} ك.س) والماكروز المحسوبة مباشرة ⚡`);
-            setShowBMRCalc(false);
-            if (activeSubTab === 'calculators') setActiveSubTab('profile');
+            setShowClinicalSuite(false);
           }}
-          onClose={() => {
-            setShowBMRCalc(false);
-            if (activeSubTab === 'calculators') setActiveSubTab('profile');
-          }}
+          onClose={() => setShowClinicalSuite(false)}
         />
+      )}
+
+      {/* Doctor Onboarding Interactive Guide Modal */}
+      <CoachOnboardingModal
+        isOpen={showCoachOnboarding}
+        onClose={() => setShowCoachOnboarding(false)}
+        plan={draft}
+      />
+
+      {/* WhatsApp Share Options Modal */}
+      {showShareOptionsModal && (
+        <div className="fixed inset-0 z-60 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in zoom-in-95 duration-150">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-emerald-50/70 dark:bg-emerald-950/40">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
+                  <Share2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm sm:text-base">
+                    خيارات إرسال الخطة للمتدرب 💬
+                  </h3>
+                  <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300 font-medium">
+                    اختر الصيغة المناسبة لتفادي مشاكل الحافظة في الموبايلات القديمة
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowShareOptionsModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content List of Options */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
+              
+              {/* Option 1: Readable Plan Without Code */}
+              <div className="p-4 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-xl bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <span className="font-black text-emerald-950 dark:text-emerald-200 text-xs sm:text-sm">
+                      1. إرسال الخطة الشاملة المكتوبة (بدون كود)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200/70 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300">
+                    نص عربي فقط
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-emerald-800/90 dark:text-emerald-300 leading-relaxed">
+                  نص الخطة بالعربي بالتفصيل (الوجبات، البدائل، السعرات، الماكروز، هدف الماء، المكملات، والأدوية) <strong>بدون كود المزامنة المشفر</strong>. يسهل قراءته على الواتساب ولا يثقل حافظة الموبايلات القديمة.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => {
+                      handleShareReadablePlanWhatsApp();
+                      setShowShareOptionsModal(false);
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5 shadow-xs active:scale-98 cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    إرسال الخطة بالواتساب 💬
+                  </button>
+
+                  <button
+                    onClick={handleCopyReadablePlan}
+                    className="w-full py-2.5 px-3 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-bold text-xs hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors flex items-center justify-center gap-1.5 active:scale-98 cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    نسخ الخطة المكتوبة 📋
+                  </button>
+                </div>
+              </div>
+
+              {/* Option 2: Sync Code Only */}
+              <div className="p-4 rounded-2xl bg-cyan-50/80 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800/60 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-xl bg-cyan-100 dark:bg-cyan-900 text-cyan-700 dark:text-cyan-300 flex items-center justify-center font-bold">
+                      <Smartphone className="w-4 h-4" />
+                    </div>
+                    <span className="font-black text-cyan-950 dark:text-cyan-200 text-xs sm:text-sm">
+                      2. إرسال كود تفعيل الخطة للتطبيق فقط
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-cyan-200/70 dark:bg-cyan-900 text-cyan-800 dark:text-cyan-300">
+                    كود فقط
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-cyan-900/90 dark:text-cyan-300 leading-relaxed">
+                  يحتوي فقط على كود التفعيل الرقمي (#START_PLAN_DATA#) لتقوم المتدربة بنسخه ولصقه مباشرة في خانة <strong>"📥 إضافة خطة الدكتورة"</strong> داخل التطبيق، دون أي نصوص إضافية طويلة.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => {
+                      handleShareSyncCodeWhatsApp();
+                      setShowShareOptionsModal(false);
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-cyan-600 text-white font-black text-xs hover:bg-cyan-700 transition-all flex items-center justify-center gap-1.5 shadow-xs active:scale-98 cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    إرسال الكود بالواتساب 📲
+                  </button>
+
+                  <button
+                    onClick={handleCopySyncCode}
+                    className="w-full py-2.5 px-3 rounded-xl bg-cyan-100 dark:bg-cyan-900/60 text-cyan-800 dark:text-cyan-200 font-bold text-xs hover:bg-cyan-200 dark:hover:bg-cyan-800 transition-colors flex items-center justify-center gap-1.5 active:scale-98 cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    نسخ كود التفعيل 🔑
+                  </button>
+                </div>
+              </div>
+
+              {/* Option 3: Full Combined Message */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
+                <div className="flex items-center justify-between text-slate-700 dark:text-slate-300 font-bold">
+                  <span>3. الرسالة الشاملة المدمجة (نص + كود معاً):</span>
+                  <span className="text-[10px] text-slate-400 font-normal">للأجهزة الحديثة</span>
+                </div>
+
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  رسالة واحدة تجمع الخطة المكتوبة وكود المزامنة في النهاية.
+                </p>
+
+                <div className="flex gap-2 pt-0.5">
+                  <button
+                    onClick={() => {
+                      handleShareFullPlanWhatsApp();
+                      setShowShareOptionsModal(false);
+                    }}
+                    className="flex-1 py-2 px-3 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-black text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    إرسال مدمجة
+                  </button>
+
+                  <button
+                    onClick={handleCopyFullPlan}
+                    className="flex-1 py-2 px-3 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    نسخ مدمجة
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowShareOptionsModal(false)}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 transition-colors cursor-pointer"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

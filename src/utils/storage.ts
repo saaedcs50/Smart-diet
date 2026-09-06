@@ -1,4 +1,4 @@
-import { PlanConfig, DayLog, SectionVisibility } from '../types';
+import { PlanConfig, DayLog, SectionVisibility, ActiveFastingSession } from '../types';
 
 export const DEFAULT_VISIBLE_SECTIONS: SectionVisibility = {
   scoreCard: true,
@@ -41,7 +41,7 @@ export const DEFAULT_PLAN: PlanConfig = {
   targetWeight: 75,
   targetWaist: 82,
   freezeDaysPerMonth: 2,
-  adminPin: '1234',
+  adminPin: '32184',
   targetCalories: 2000,
   targetProtein: 140,
   targetCarbs: 180,
@@ -137,13 +137,85 @@ export const DEFAULT_PLAN: PlanConfig = {
 
 const PLAN_KEY = 'nt_v6_egypt_plan';
 const DAY_PREFIX = 'nt_v6_egypt_day_';
+const ACTIVE_FASTING_KEY = 'smartdiet_active_fasting_session';
 
-export function getTodayDateString(): string {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+/**
+ * Parses YYYY-MM-DD into a pure local Date (midnight local time)
+ * avoiding UTC offset shifts across midnight.
+ */
+export function parseLocalDate(dateStr: string): Date {
+  if (!dateStr || typeof dateStr !== 'string') return new Date();
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length >= 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  return new Date(dateStr);
+}
+
+/**
+ * Returns YYYY-MM-DD in the user's local timezone.
+ * Accepts Date object, number timestamp, or date string.
+ */
+export function getTodayDateString(d?: Date | string | number): string {
+  let dateObj: Date;
+  if (!d) {
+    dateObj = new Date();
+  } else if (typeof d === 'string' && d.includes('-') && d.length === 10) {
+    return d;
+  } else if (d instanceof Date) {
+    dateObj = d;
+  } else {
+    dateObj = new Date(d);
+  }
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+/**
+ * Retrieves the currently active fasting session if one is in progress across days.
+ */
+export function getActiveFastingSession(): ActiveFastingSession {
+  try {
+    const raw = localStorage.getItem(ACTIVE_FASTING_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.isActive && parsed.startTime) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to get active fasting session', e);
+  }
+  return {
+    isActive: false,
+    startTime: null,
+  };
+}
+
+/**
+ * Persists an active fasting session across midnight and page reloads.
+ */
+export function saveActiveFastingSession(session: ActiveFastingSession): void {
+  try {
+    if (session.isActive && session.startTime) {
+      localStorage.setItem(ACTIVE_FASTING_KEY, JSON.stringify(session));
+    } else {
+      localStorage.removeItem(ACTIVE_FASTING_KEY);
+    }
+  } catch (e) {
+    console.error('Failed to save active fasting session', e);
+  }
+}
+
+/**
+ * Clears any active fasting session from storage.
+ */
+export function clearActiveFastingSession(): void {
+  try {
+    localStorage.removeItem(ACTIVE_FASTING_KEY);
+  } catch (e) {}
 }
 
 export function createEmptyDayLog(): DayLog {
@@ -189,6 +261,12 @@ export function loadPlanFromStorage(): PlanConfig {
     const raw = localStorage.getItem(PLAN_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
+      if (parsed.adminPin === '1234' || !parsed.adminPin) {
+        parsed.adminPin = '32184';
+        try {
+          localStorage.setItem(PLAN_KEY, JSON.stringify({ ...DEFAULT_PLAN, ...parsed }));
+        } catch (e) {}
+      }
       return { ...DEFAULT_PLAN, ...parsed };
     }
   } catch (e) {
@@ -259,6 +337,7 @@ export function getAllStoredDayLogs(): Record<string, DayLog> {
 export function exportFullBackupJSON(): string {
   const plan = loadPlanFromStorage();
   const dailyLogs = getAllStoredDayLogs();
+  const activeFastingSession = getActiveFastingSession();
   let notificationSettings = null;
   try {
     const rawNotifs = localStorage.getItem('nt_notification_settings');
@@ -272,6 +351,7 @@ export function exportFullBackupJSON(): string {
     exportedAt: new Date().toISOString(),
     plan,
     dailyLogs,
+    activeFastingSession,
     notificationSettings,
   };
   return JSON.stringify(backup, null, 2);
@@ -285,6 +365,9 @@ export function importFullBackupJSON(jsonString: string): boolean {
     }
     if (data.notificationSettings) {
       localStorage.setItem('nt_notification_settings', JSON.stringify(data.notificationSettings));
+    }
+    if (data.activeFastingSession && typeof data.activeFastingSession === 'object') {
+      saveActiveFastingSession(data.activeFastingSession);
     }
     if (data.dailyLogs && typeof data.dailyLogs === 'object') {
       Object.entries(data.dailyLogs).forEach(([dateStr, log]) => {

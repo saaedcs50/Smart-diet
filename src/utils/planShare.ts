@@ -2,20 +2,9 @@ import { PlanConfig } from '../types';
 import { DEFAULT_PLAN, DEFAULT_VISIBLE_SECTIONS } from './storage';
 
 /**
- * Formats a complete, professional, human-readable WhatsApp message
- * containing all plan details, clinical instructions, and embedded sync data.
+ * Encodes a PlanConfig into a safe Base64 sync payload string.
  */
-export function generateWhatsAppPlanMessage(plan: PlanConfig): string {
-  const dateStr = new Date().toLocaleDateString('ar-EG', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-
-  const waterCups = Math.round((plan.dailyWaterGoalMl || 3000) / 250);
-
-  // Clean payload for sync
+export function encodePlanSyncData(plan: PlanConfig): string {
   const syncPayload: PlanConfig = {
     ...DEFAULT_PLAN,
     ...plan,
@@ -24,8 +13,22 @@ export function generateWhatsAppPlanMessage(plan: PlanConfig): string {
       ...(plan.visibleSections || {}),
     },
   };
+  return btoa(unescape(encodeURIComponent(JSON.stringify(syncPayload))));
+}
 
-  const encodedSyncData = btoa(unescape(encodeURIComponent(JSON.stringify(syncPayload))));
+/**
+ * Formats the detailed, readable Arabic text of the plan
+ * WITHOUT the embedded #START_PLAN_DATA# sync code block.
+ */
+export function generatePlanReadableText(plan: PlanConfig): string {
+  const dateStr = new Date().toLocaleDateString('ar-EG', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const waterCups = Math.round((plan.dailyWaterGoalMl || 3000) / 250);
 
   let text = `🩺 *الخطة الغذائية والإرشادات العلاجية المعتمدة* 📋\n`;
   text += `👩‍⚕️ *د. شيماء - Smart Diet Clinic*\n`;
@@ -126,7 +129,35 @@ export function generateWhatsAppPlanMessage(plan: PlanConfig): string {
     });
   }
 
-  text += `\n═══════════════════════\n`;
+  return text.trim();
+}
+
+/**
+ * Formats ONLY the synchronization code block for mobile-friendly app import.
+ */
+export function generatePlanSyncCode(plan: PlanConfig): string {
+  const encodedSyncData = encodePlanSyncData(plan);
+
+  let text = `📲 *كود تفعيل الخطة في تطبيق Smart Diet:*\n`;
+  text += `👤 *المتدرب:* ${plan.clientName || 'المتدرب'}\n`;
+  text += `💡 *طريقة الاستخدام:* انسخ الرسالة بالكامل وافتح التطبيق واضغط على *"📥 إضافة خطة الدكتورة"* ثم الصق النص.\n\n`;
+  text += `#START_PLAN_DATA#\n`;
+  text += `${encodedSyncData}\n`;
+  text += `#END_PLAN_DATA#`;
+
+  return text;
+}
+
+/**
+ * Formats a complete, professional, human-readable WhatsApp message
+ * containing all plan details, clinical instructions, and embedded sync data.
+ */
+export function generateWhatsAppPlanMessage(plan: PlanConfig): string {
+  const readable = generatePlanReadableText(plan);
+  const encodedSyncData = encodePlanSyncData(plan);
+
+  let text = `${readable}\n\n`;
+  text += `═══════════════════════\n`;
   text += `📲 *طريقة تفعيل الخطة في التطبيق:*\n`;
   text += `1. انسخ هذه الرسالة بالكامل من الواتساب.\n`;
   text += `2. افتح التطبيق واضغط على زر *"📥 إضافة خطة الدكتورة"* في أعلى الصفحة.\n`;
