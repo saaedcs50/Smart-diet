@@ -1,0 +1,16 @@
+{
+  "appName": "اسم التطبيق للعميل",
+  "shortName": "اسم مختصر",
+  "clinicName": "اسم العيادة كامل",
+  "doctorName": "د. الاسم",
+  "doctorNameAlt": "د. الاسم",
+  "specialistTitle": "أخصائي التغذية",
+  "specialistShort": "الأخصائي",
+  "specialistTo": "للأخصائي",
+  "description": "وصف قصير للتطبيق يظهر في الميتاداتا",
+  "themeColor": "#0d9488",
+  "accentColor": "#f59e0b",
+  "backgroundColor": "#f8fafc",
+  "whatsapp": "",
+  "logoPath": "/brands/slug.png"
+}

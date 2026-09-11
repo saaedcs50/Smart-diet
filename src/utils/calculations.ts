@@ -4,6 +4,7 @@ import { getHungerInfo } from './hungerScale';
 import { getAllScheduledDoses, calculateDailyMedicationAdherence, APPETITE_EFFECT_LABELS, WEIGHT_EFFECT_LABELS } from './medications';
 import { getCycleInfo, CYCLE_SYMPTOMS, CLINICAL_FLAGS_META, getWeightVsRecentAverage } from './cycleTracking';
 import { formatLabSummaryForWhatsApp } from './labTracking';
+import { BRAND } from '../config/brand';
 
 export function calculateEffectiveWaterGoal(plan: PlanConfig, day: DayLog, knownLatestWeight?: number | null): number {
   if (day.weight && day.weight > 0) {
@@ -570,9 +571,9 @@ export function generateDailyReportText(plan: PlanConfig, day: DayLog, dateStr: 
   }
 
   const moodTexts = ['', 'منخفض جداً 😞', 'مرهق / متوتر 😐', 'معتدل ومستقر 🙂', 'نشيط وإيجابي 😊', 'ممتاز ومرتفع 🤩'];
-  const moodStr = day.mood ? moodTexts[day.mood] || '—' : 'لم يسجل';
+  const moodStr = day.mood ? moodTexts[day.mood] || '-' : 'لم يسجل';
 
-  let report = `📋 *تقرير المتابعة اليومي - د. شيماء*\n`;
+  let report = `📋 *تقرير المتابعة اليومي - ${BRAND.doctorName}*\n`;
   report += `👤 *الاسم:* ${plan.clientName}\n`;
   report += `📅 *التاريخ:* ${dateStr}\n`;
   report += `────────────────────────\n`;
@@ -659,8 +660,8 @@ export function generateDailyReportText(plan: PlanConfig, day: DayLog, dateStr: 
   // 6. Calories & Macros (if tracked)
   if (day.consumedCalories || day.consumedProtein || day.consumedCarbs || day.consumedFats) {
     report += `\n🔥 *السعرات والماكروز اليومية:*\n`;
-    report += `• السعرات: ${day.consumedCalories || 0} / ${plan.targetCalories || '—'} سعرة\n`;
-    report += `• بروتين: ${day.consumedProtein || 0} / ${plan.targetProtein || '—'} جم | كارب: ${day.consumedCarbs || 0} جم | دهون: ${day.consumedFats || 0} جم\n`;
+    report += `• السعرات: ${day.consumedCalories || 0} / ${plan.targetCalories || '-'} سعرة\n`;
+    report += `• بروتين: ${day.consumedProtein || 0} / ${plan.targetProtein || '-'} جم | كارب: ${day.consumedCarbs || 0} جم | دهون: ${day.consumedFats || 0} جم\n`;
   }
 
   // 7. Full Meal Details & Mindful Hunger-Fullness Scale
@@ -823,11 +824,11 @@ export function generateDailyReportText(plan: PlanConfig, day: DayLog, dateStr: 
 
   // 11. Notes to Doctor
   if (day.notes?.trim()) {
-    report += `\n💬 *رسالة واستفسار لـ د. شيماء:*\n"${day.notes.trim()}"\n`;
+    report += `\n💬 *رسالة واستفسار لـ ${BRAND.doctorName}:*\n"${day.notes.trim()}"\n`;
   }
 
   report += `\n────────────────────────\n`;
-  report += `📱 *Smart Diet System - د. شيماء*`;
+  report += `📱 *${BRAND.appName} System - ${BRAND.doctorName}*`;
 
   return report;
 }

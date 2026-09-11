@@ -7,27 +7,56 @@ import {
   ChevronUp, 
   Flame, 
   Leaf, 
-  Beef,
-  Sparkles,
-  Info,
-  Scale
+  Beef, 
+  Circle, 
+  Info, 
+  Scale, 
+  Sparkles, 
+  Fish 
 } from 'lucide-react';
 import { MealItem, MealLogState } from '../types';
+import { BRAND } from '../config/brand';
 import { HungerFullnessPicker } from './HungerFullnessPicker';
+import { TodayFastingStatus, getRemappedMealName } from '../utils/fasting';
+import { detectFastingSubstitutions, SMART_SUBSTITUTIONS_BANK, FastingSubItem } from '../utils/fastingSubstitutions';
 
 interface MealCardProps {
   meal: MealItem;
   state?: MealLogState;
   onUpdate: (state: MealLogState) => void;
+  index?: number;
+  fastingStatus?: TodayFastingStatus;
 }
 
-export const MealCard: React.FC<MealCardProps> = ({ meal, state, onUpdate }) => {
+export const MealCard: React.FC<MealCardProps> = ({ 
+  meal, 
+  state, 
+  onUpdate, 
+  index = 0,
+  fastingStatus 
+}) => {
   const currentLog: MealLogState = state || {};
   const [showAlts, setShowAlts] = useState(false);
+  const [showSmartSubs, setShowSmartSubs] = useState(false);
 
   const isCommitted = currentLog.eval === 'yes';
   const isSlipped = currentLog.eval === 'no';
   const isAlternative = currentLog.type === 'alt';
+
+  // Fasting checks
+  const isFastingActive = fastingStatus?.isFasting;
+  const isIslamic = fastingStatus?.type === 'islamic';
+  const isChristian = fastingStatus?.type === 'christian';
+  const allowFish = fastingStatus?.allowFish || false;
+
+  // Meal name remapping for Islamic fasting days
+  const displayName = isIslamic && isFastingActive 
+    ? getRemappedMealName(meal.name, index, true)
+    : meal.name;
+
+  // Detect smart substitutions for this meal
+  const detectedSubs = detectFastingSubstitutions(meal.items, allowFish);
+  const hasSmartSubs = detectedSubs.length > 0;
 
   const handleSetCommitted = () => {
     onUpdate({
@@ -55,6 +84,20 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, state, onUpdate }) => 
       eval: 'yes',
     });
     setShowAlts(false);
+    setShowSmartSubs(false);
+  };
+
+  const handleApplySmartSub = (sub: FastingSubItem, useFish: boolean) => {
+    const choice = useFish && sub.fishAlternative ? sub.fishAlternative : sub.plantAlternative;
+    onUpdate({
+      ...currentLog,
+      type: 'alt',
+      detail: `${choice} (~${sub.proteinGrams}g بروتين)`,
+      eval: 'yes',
+      protein: true,
+      veggies: true,
+    });
+    setShowSmartSubs(false);
   };
 
   const handleToggleProtein = () => {
@@ -69,34 +112,47 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, state, onUpdate }) => 
     <div
       className={`rounded-3xl p-4 sm:p-5 border transition-all duration-200 ${
         isCommitted
-          ? 'bg-[#0D9488]/10 dark:bg-[#0D9488]/15 border-[#0D9488]/40 dark:border-[#0D9488]/40 shadow-xs'
+          ? 'bg-[#0D9488]/10 dark:bg-[#0D9488]/15 border-[#0D9488]/40 dark:border-[#0D9488]/40'
           : isSlipped
           ? 'bg-[#E0922D]/10 dark:bg-[#E0922D]/15 border-[#E0922D]/40 dark:border-[#E0922D]/40'
-          : 'bg-white dark:bg-[#2D103E] border-[#D8C4E9]/80 dark:border-[#542870]/80'
+          : 'bg-[var(--app-card)] border-[var(--app-border)]/80'
       }`}
     >
       {/* Header Row */}
       <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="flex items-center gap-2">
-            <h3 className="font-bold text-[#3A124D] dark:text-[#EDE5F5] text-sm sm:text-base">
-              {meal.name}
+          <div className="flex items-center flex-wrap gap-2">
+            <h3 className="font-bold text-[var(--app-text-primary)] text-sm sm:text-base">
+              {displayName}
             </h3>
+
+            {isIslamic && isFastingActive && (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                صيام إسلامي
+              </span>
+            )}
+
+            {isChristian && isFastingActive && (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30">
+                {allowFish ? 'صيامي + سمك' : 'نباتي صيامي'}
+              </span>
+            )}
+
             {isAlternative && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#5B2482]/10 dark:bg-[#5B2482]/30 text-[#5B2482] dark:text-[#D8C4E9] border border-[#5B2482]/20">
-                بديل معتمد 🔄
+              <span className="text-[12px] font-bold px-2 py-0.5 rounded-full bg-[var(--app-secondary)]/10 dark:bg-[var(--app-secondary)]/30 text-[var(--app-secondary)] dark:text-[var(--app-secondary)] border border-[var(--app-secondary)]/20">
+                بديل معتمد 
               </span>
             )}
             {meal.calories && (
-              <span className="text-[10px] font-medium text-[#6F5A7D] dark:text-[#B792D4]">
+              <span className="text-[12px] font-medium text-[var(--app-text-secondary)]">
                 ~{meal.calories} سعرة
               </span>
             )}
           </div>
-          <p className="text-xs text-[#6F5A7D] dark:text-[#B792D4] mt-1 leading-relaxed">
+          <p className="text-xs text-[var(--app-text-secondary)] mt-1 leading-relaxed">
             {isAlternative && currentLog.detail ? (
-              <span className="text-[#5B2482] dark:text-[#D8C4E9] font-semibold">
-                ⭐ البديل المختار: {currentLog.detail}
+              <span className="text-[var(--app-secondary)] dark:text-[var(--app-secondary)] font-semibold">
+                البديل المختار: {currentLog.detail}
               </span>
             ) : (
               meal.items
@@ -110,8 +166,8 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, state, onUpdate }) => 
             onClick={handleSetCommitted}
             className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer ${
               isCommitted
-                ? 'bg-[#0D9488] text-white shadow-xs'
-                : 'bg-[#F8F7F9] dark:bg-[#3D1B53]/60 text-[#3A124D] dark:text-[#EDE5F5] hover:bg-[#0D9488]/10 hover:text-[#0D9488]'
+                ? 'bg-[#0D9488] text-white'
+                : 'bg-[var(--app-card-muted)] text-[var(--app-text-primary)] hover:bg-[#0D9488]/10 hover:text-[#0D9488]'
             }`}
           >
             <Check className="w-4 h-4" />
@@ -122,8 +178,8 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, state, onUpdate }) => 
             onClick={handleSetSlipped}
             className={`px-2.5 py-1.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer ${
               isSlipped
-                ? 'bg-[#E0922D] text-white shadow-xs'
-                : 'bg-[#F8F7F9] dark:bg-[#3D1B53]/60 text-[#3A124D] dark:text-[#EDE5F5] hover:bg-[#E0922D]/10 hover:text-[#E0922D]'
+                ? 'bg-[#E0922D] text-white'
+                : 'bg-[var(--app-card-muted)] text-[var(--app-text-primary)] hover:bg-[#E0922D]/10 hover:text-[#E0922D]'
             }`}
             title="تغيير بالوجبة"
           >
@@ -135,16 +191,16 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, state, onUpdate }) => 
 
       {/* Note input if not fully committed */}
       {isSlipped && (
-        <div className="mt-3 p-3 rounded-2xl bg-[#F8F7F9] dark:bg-[#3D1B53]/60 border border-[#D8C4E9]/60 dark:border-[#542870]/60 text-xs text-[#3A124D] dark:text-[#EDE5F5] space-y-1.5 animate-in fade-in">
-          <p className="text-[11px] leading-relaxed text-[#6F5A7D] dark:text-[#B792D4]">
-            تدوين ما تم تناوله أو سبب التغيير لإطلاع د. شيماء:
+        <div className="mt-3 p-3 rounded-2xl bg-[var(--app-card-muted)] border border-[var(--app-border)]/60 text-xs text-[var(--app-text-primary)] space-y-1.5 animate-in fade-in">
+          <p className="text-[12px] leading-relaxed text-[var(--app-text-secondary)]">
+            تدوين ما تم تناوله أو سبب التغيير لإطلاع {BRAND.doctorName}:
           </p>
           <input
             type="text"
             placeholder="مثال: تم تناول وجبة سريعة مع الأصدقاء..."
             value={currentLog.reason || ''}
             onChange={(e) => onUpdate({ ...currentLog, reason: e.target.value })}
-            className="w-full text-xs p-2 rounded-xl border border-[#D8C4E9]/70 dark:border-[#542870]/70 bg-white dark:bg-[#2D103E] text-[#3A124D] dark:text-[#EDE5F5] outline-none focus:ring-2 focus:ring-[#E21B6D]"
+            className="w-full text-xs p-2 rounded-xl border border-[var(--app-border)]/70 bg-[var(--app-card)] text-[var(--app-text-primary)] outline-none focus:ring-2 focus:ring-[var(--app-hero)]"
           />
         </div>
       )}
@@ -156,8 +212,8 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, state, onUpdate }) => 
         onChange={(updates) => onUpdate({ ...currentLog, ...updates })}
       />
 
-      {/* Action Footer: Quality Pills + Always Visible Alternatives Button */}
-      <div className="mt-3 pt-2.5 border-t border-[#D8C4E9]/40 dark:border-[#542870]/40 flex flex-wrap items-center justify-between gap-2">
+      {/* Action Footer: Quality Pills + Always Visible Alternatives Button + Smart Substitutions */}
+      <div className="mt-3 pt-2.5 border-t border-[var(--app-border)]/40 flex flex-wrap items-center justify-between gap-2">
         {/* Quality Toggles (Visible when committed) */}
         {isCommitted ? (
           <div className="flex items-center gap-1.5">
@@ -165,8 +221,8 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, state, onUpdate }) => 
               onClick={handleToggleProtein}
               className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer ${
                 currentLog.protein
-                  ? 'bg-[#0D9488] text-white shadow-xs'
-                  : 'bg-[#F8F7F9] dark:bg-[#3D1B53]/60 text-[#6F5A7D] dark:text-[#B792D4] hover:bg-[#F1E9F8]'
+                  ? 'bg-[#0D9488] text-white'
+                  : 'bg-[var(--app-card-muted)] text-[var(--app-text-secondary)] hover:bg-[var(--app-card-muted)]'
               }`}
             >
               <Beef className="w-3.5 h-3.5" />
@@ -177,8 +233,8 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, state, onUpdate }) => 
               onClick={handleToggleVeggies}
               className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer ${
                 currentLog.veggies
-                  ? 'bg-[#0D9488] text-white shadow-xs'
-                  : 'bg-[#F8F7F9] dark:bg-[#3D1B53]/60 text-[#6F5A7D] dark:text-[#B792D4] hover:bg-[#F1E9F8]'
+                  ? 'bg-[#0D9488] text-white'
+                  : 'bg-[var(--app-card-muted)] text-[var(--app-text-secondary)] hover:bg-[var(--app-card-muted)]'
               }`}
             >
               <Leaf className="w-3.5 h-3.5" />
@@ -186,29 +242,159 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, state, onUpdate }) => 
             </button>
           </div>
         ) : (
-          <span className="text-[11px] text-[#6F5A7D] dark:text-[#B792D4]">
+          <span className="text-[12px] text-[var(--app-text-secondary)]">
             اضغط على "تم الالتزام" لتسجيل جودة الوجبة
           </span>
         )}
 
-        {/* Alternatives Toggle Button - ALWAYS VISIBLE */}
-        {meal.alternatives && meal.alternatives.length > 0 && (
+        {/* Buttons: Standard Alternatives + Smart Substitutions Bank */}
+        <div className="flex items-center gap-2 mr-auto">
+          {/* Smart Substitutions Bank Button */}
           <button
-            onClick={() => setShowAlts(!showAlts)}
-            className="px-2.5 py-1 rounded-xl text-xs font-bold text-[#5B2482] dark:text-[#D8C4E9] bg-[#5B2482]/10 dark:bg-[#5B2482]/30 hover:bg-[#5B2482]/20 border border-[#5B2482]/30 dark:border-[#542870] transition-colors flex items-center gap-1 mr-auto cursor-pointer"
+            onClick={() => {
+              setShowSmartSubs(!showSmartSubs);
+              setShowAlts(false);
+            }}
+            className="px-2.5 py-1 rounded-xl text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 hover:bg-teal-100 dark:hover:bg-teal-900/50 border border-teal-200 dark:border-teal-800/80 transition-colors flex items-center gap-1 cursor-pointer"
+            title="بنك البدائل الذكي للصيام والوجبات النباتية"
           >
-            <RotateCw className="w-3 h-3" />
-            {showAlts ? 'إخفاء البدائل' : 'البدائل المعتمدة'}
+            <Sparkles className="w-3.5 h-3.5 text-teal-500" />
+            <span>{showSmartSubs ? 'إغلاق البدائل' : 'بنك البدائل الذكي'}</span>
           </button>
-        )}
+
+          {/* Alternatives Toggle Button - ALWAYS VISIBLE */}
+          {meal.alternatives && meal.alternatives.length > 0 && (
+            <button
+              onClick={() => {
+                setShowAlts(!showAlts);
+                setShowSmartSubs(false);
+              }}
+              className="px-2.5 py-1 rounded-xl text-xs font-bold text-[var(--app-secondary)] dark:text-[var(--app-secondary)] bg-[var(--app-secondary)]/10 dark:bg-[var(--app-secondary)]/30 hover:bg-[var(--app-secondary)]/20 border border-[var(--app-secondary)]/30 dark:border-[var(--app-border)] transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <RotateCw className="w-3 h-3" />
+              {showAlts ? 'إخفاء الخيارات' : 'البدائل المقررة'}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Smart Substitutions Bank Drawer */}
+      {showSmartSubs && (
+        <div className="mt-3 p-3.5 rounded-2xl bg-teal-50/50 dark:bg-slate-900 border border-teal-200 dark:border-teal-900/60 space-y-3 animate-in slide-in-from-top duration-150">
+          <div className="flex items-center justify-between border-b border-teal-200/60 dark:border-teal-900/40 pb-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+              <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                بنك البدائل الذكي (بدائل نباتية وصيامية متوازنة الماكروز)
+              </span>
+            </div>
+            {isAlternative && (
+              <button
+                onClick={() => {
+                  onUpdate({
+                    ...currentLog,
+                    type: 'default',
+                    detail: undefined,
+                  });
+                }}
+                className="text-[12px] font-bold text-teal-700 dark:text-teal-400 hover:underline cursor-pointer"
+              >
+                الرجوع للوجبة الأصلية
+              </button>
+            )}
+          </div>
+
+          {/* Quick Detected Matches for this meal */}
+          {hasSmartSubs && (
+            <div className="space-y-2">
+              <span className="text-[11px] font-bold text-teal-800 dark:text-teal-300 block">
+                ⚡ بدائل مقترحة تلقائياً لمكونات هذه الوجبة:
+              </span>
+              <div className="grid grid-cols-1 gap-2">
+                {detectedSubs.map((sub) => (
+                  <div 
+                    key={sub.id}
+                    className="p-2.5 rounded-xl bg-white dark:bg-slate-800/90 border border-teal-100 dark:border-teal-900/50 space-y-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-slate-700 dark:text-slate-200">
+                        بديل: {sub.original}
+                      </span>
+                      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300">
+                        ~{sub.proteinGrams}g بروتين
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                      💡 {sub.notesAr}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      {/* Option 1: Plant-based alternative */}
+                      <button
+                        type="button"
+                        onClick={() => handleApplySmartSub(sub, false)}
+                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Leaf className="w-3 h-3" />
+                        <span>نباتي صيامي: {sub.plantAlternative.slice(0, 30)}...</span>
+                      </button>
+
+                      {/* Option 2: Seafood alternative (if allowed) */}
+                      {sub.fishAlternative && (
+                        <button
+                          type="button"
+                          onClick={() => handleApplySmartSub(sub, true)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Fish className="w-3 h-3" />
+                          <span>بديل بحري: {sub.fishAlternative.slice(0, 25)}...</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Full General Substitutions List */}
+          <div className="space-y-1.5 pt-1">
+            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block">
+              جميع بدائل البروتين المعتمدة في البنك:
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+              {SMART_SUBSTITUTIONS_BANK.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleApplySmartSub(item, allowFish)}
+                  className="text-right p-2 rounded-xl bg-white dark:bg-slate-800/80 hover:border-teal-400 border border-slate-200 dark:border-slate-700 text-xs transition-colors cursor-pointer space-y-1"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-800 dark:text-slate-100">
+                      {item.original}
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                      {item.proteinGrams}g بروتين
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
+                    {allowFish && item.fishAlternative ? item.fishAlternative : item.plantAlternative}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Alternative items accordion - Always Accessible */}
       {showAlts && meal.alternatives && meal.alternatives.length > 0 && (
-        <div className="mt-3 p-3 rounded-2xl bg-[#F8F7F9] dark:bg-[#3D1B53]/60 border border-[#D8C4E9]/70 dark:border-[#542870]/70 space-y-2 animate-in slide-in-from-top duration-150">
+        <div className="mt-3 p-3 rounded-2xl bg-[var(--app-card-muted)] border border-[var(--app-border)]/70 space-y-2 animate-in slide-in-from-top duration-150">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[#3A124D] dark:text-[#EDE5F5]">
-              اختر البديل المعتمد من د. شيماء:
+            <span className="text-xs font-bold text-[var(--app-text-primary)]">
+              اختر البديل المعتمد من {BRAND.doctorName}:
             </span>
             {isAlternative && (
               <button
@@ -219,7 +405,7 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, state, onUpdate }) => 
                     detail: undefined,
                   });
                 }}
-                className="text-[11px] font-bold text-[#E21B6D] dark:text-[#FF4099] hover:underline cursor-pointer"
+                className="text-[12px] font-bold text-[var(--app-hero)] dark:text-[var(--app-hero-hover)] hover:underline cursor-pointer"
               >
                 الرجوع للوجبة الأساسية
               </button>
@@ -233,12 +419,12 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, state, onUpdate }) => 
                 className={`w-full text-right p-2.5 rounded-xl text-xs font-medium border transition-colors flex items-center justify-between cursor-pointer ${
                   currentLog.detail === alt && isAlternative
                     ? 'bg-[#0D9488]/15 dark:bg-[#0D9488]/25 text-[#0D9488] dark:text-[#2DD4BF] border-[#0D9488]/40'
-                    : 'bg-white dark:bg-[#2D103E] hover:bg-[#F8F7F9] dark:hover:bg-[#3D1B53] text-[#3A124D] dark:text-[#EDE5F5] border-[#D8C4E9]/60 dark:border-[#542870]/60'
+                    : 'bg-[var(--app-card)] hover:bg-[var(--app-card-muted)] text-[var(--app-text-primary)] border-[var(--app-border)]/60'
                 }`}
               >
                 <span>{alt}</span>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-[#5B2482]/10 dark:bg-[#5B2482]/30 text-[#5B2482] dark:text-[#D8C4E9]">
-                  {currentLog.detail === alt && isAlternative ? 'محدد حالياً ✓' : 'اختيار البديل'}
+                <span className="text-[12px] font-bold px-2 py-0.5 rounded-lg bg-[var(--app-secondary)]/10 dark:bg-[var(--app-secondary)]/30 text-[var(--app-secondary)] dark:text-[var(--app-secondary)]">
+                  {currentLog.detail === alt && isAlternative ? 'محدد حالياً ' : 'اختيار البديل'}
                 </span>
               </button>
             ))}
@@ -248,4 +434,3 @@ export const MealCard: React.FC<MealCardProps> = ({ meal, state, onUpdate }) => 
     </div>
   );
 };
-

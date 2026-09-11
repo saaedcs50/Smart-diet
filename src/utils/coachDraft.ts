@@ -1,6 +1,7 @@
 /**
  * Local helper for Coach Weekly Follow-up Message Generation (100% Offline & Template-based)
  */
+import { BRAND } from '../config/brand';
 
 export interface WeeklyDraftParams {
   clientName: string;
@@ -39,29 +40,29 @@ export function generateLocalWeeklyDraft(params: WeeklyDraftParams): string {
 
   let clinicalAdvice = '';
   if (avgAdherence >= 80) {
-    clinicalAdvice = 'ما شاء الله التزامك ممتاز ومجهود رائع! استمري بنفس الحماس والتركيز على شرب الماء والنوم المنتظم.';
+    clinicalAdvice = 'الالتزام جيد بالخطة. يُرجى الاستمرار في متابعة كميات الماء ومواعيد النوم.';
   } else if (avgAdherence >= 60) {
-    clinicalAdvice = 'بداية جيدة وخطوات ممتازة! ركزي في الأسبوع القادم على تنظيم مواعيد الوجبات وزيادة شرب الماء لرفع معدل الحرق.';
+    clinicalAdvice = 'يُرجى التركيز في الأسبوع القادم على تنظيم مواعيد الوجبات والوصول لكمية الماء المقررة.';
   } else {
-    clinicalAdvice = 'كل بداية تحتاج صبراً، لا تقلقي من أي تقصير سابق! دعينا نبدأ الأسبوع الجديد بتركيز أكبر على تتبع الوجبات اليومية.';
+    clinicalAdvice = 'يُرجى التركيز خلال الأسبوع القادم على الالتزام بتسجيل الوجبات أولاً بأول.';
   }
 
   const lines = [
-    `أهلاً يا ${clientName || 'البطل'}، معكي د. شيماء 🩺`,
-    `متابعة الأسبوع لخطتك (${goal || 'نمط حياة صحي وإدارة الوزن'}):`,
+    `مرحباً ${clientName || 'المشترك'}، معك ${BRAND.doctorName}`,
+    `تقرير متابعة الأسبوع لخطتك (${goal || 'إدارة التغذية والوزن'}):`,
     ``,
-    `📊 ملخص نتائج الأسبوع:`,
+    `ملخص النتائج:`,
     `• متوسط الالتزام العام: ${avgAdherence}%`,
-    `• أفضل يوم التزام: ${bestDay}`,
+    `• أعلى يوم التزام: ${bestDay}`,
     weightNote ? `• تطور الوزن: ${weightNote}` : null,
     avgWater ? `• متوسط شرب الماء: ${avgWater} كوب/يوم` : null,
-    `• أيام النشاط والرياضة: ${exerciseDays} أيام`,
-    medsAdherence !== null && medsAdherence !== undefined ? `• التزام الأدوية والمكملات: ${medsAdherence}%` : null,
+    `• أيام النشاط البدني: ${exerciseDays} أيام`,
+    medsAdherence !== null && medsAdherence !== undefined ? `• الالتزام بالمكملات/الأدوية: ${medsAdherence}%` : null,
     ``,
-    `💡 توجيهات الأسبوع الجديد:`,
+    `الملاحظات والتوجيهات:`,
     clinicalAdvice,
     ``,
-    `جاهزة لأي استفسار أو تعديل في الوجبات. بالتوفيق دائماً! 🌸`,
+    `لأي استفسار أو تعديل في الوجبات يمكنك التواصل في أي وقت.`,
   ].filter((l) => l !== null);
 
   return lines.join('\n');

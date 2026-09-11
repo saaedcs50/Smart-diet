@@ -1,12 +1,12 @@
 import { PhotoRecord } from '../types';
+import { StorageKeys, LEGACY_PHOTO_DB } from './storageKeys';
 
-const DB_NAME = 'nt_private_photos_db';
 const DB_VERSION = 1;
 const STORE_NAME = 'progress_photos';
 
-function openPhotoDB(): Promise<IDBDatabase> {
+function openNamedPhotoDB(name: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(name, DB_VERSION);
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -21,6 +21,49 @@ function openPhotoDB(): Promise<IDBDatabase> {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
+}
+
+async function migratePhotosFromLegacyIfNeeded(newDb: IDBDatabase): Promise<void> {
+  const newName = StorageKeys.photoDbName();
+  if (newName === LEGACY_PHOTO_DB) return;
+  try {
+    const countReq = newDb.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).count();
+    const count: number = await new Promise((resolve, reject) => {
+      countReq.onsuccess = () => resolve(countReq.result as number);
+      countReq.onerror = () => reject(countReq.error);
+    });
+    if (count > 0) return;
+
+    const legacy = await openNamedPhotoDB(LEGACY_PHOTO_DB);
+    const all: PhotoRecord[] = await new Promise((resolve, reject) => {
+      const req = legacy.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).getAll();
+      req.onsuccess = () => resolve((req.result || []) as PhotoRecord[]);
+      req.onerror = () => reject(req.error);
+    });
+    if (!all.length) {
+      legacy.close();
+      return;
+    }
+    await new Promise<void>((resolve, reject) => {
+      const tx = newDb.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      for (const rec of all) {
+        const { id: _id, ...rest } = rec as PhotoRecord & { id?: number };
+        store.add(rest);
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    legacy.close();
+  } catch {
+    // legacy DB may not exist
+  }
+}
+
+async function openPhotoDB(): Promise<IDBDatabase> {
+  const db = await openNamedPhotoDB(StorageKeys.photoDbName());
+  await migratePhotosFromLegacyIfNeeded(db);
+  return db;
 }
 
 export async function addPhotoToDB(record: Omit<PhotoRecord, 'id'>): Promise<number> {
@@ -77,9 +120,23 @@ export async function deletePhotoFromDB(id: number): Promise<boolean> {
   }
 }
 
-export function processAndCompressImage(file: File, maxDimension = 1000, quality = 0.78): Promise<string> {
+export interface CompressionResult {
+  dataUrl: string;
+  originalSizeKb: number;
+  compressedSizeKb: number;
+  savedPercent: number;
+  format: string;
+}
+
+export function compressImageWithStats(
+  file: File,
+  maxDimension = 1200,
+  initialQuality = 0.8
+): Promise<CompressionResult> {
   return new Promise((resolve, reject) => {
+    const originalSizeKb = Math.round(file.size / 1024);
     const reader = new FileReader();
+
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
@@ -93,6 +150,7 @@ export function processAndCompressImage(file: File, maxDimension = 1000, quality
             height = maxDimension;
           }
         }
+
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
@@ -101,9 +159,36 @@ export function processAndCompressImage(file: File, maxDimension = 1000, quality
           reject(new Error('Canvas context not available'));
           return;
         }
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        resolve(dataUrl);
+
+        // Try WebP first for superior compression, fallback to JPEG
+        let chosenFormat = 'image/webp';
+        let dataUrl = canvas.toDataURL('image/webp', initialQuality);
+
+        if (!dataUrl.startsWith('data:image/webp')) {
+          chosenFormat = 'image/jpeg';
+          dataUrl = canvas.toDataURL('image/jpeg', initialQuality);
+        }
+
+        // Calculate compressed size in KB from base64 string
+        const base64Length = dataUrl.length - (dataUrl.indexOf(',') + 1);
+        const compressedSizeBytes = (base64Length * 3) / 4;
+        const compressedSizeKb = Math.round(compressedSizeBytes / 1024);
+
+        const savedPercent = originalSizeKb > 0 
+          ? Math.max(0, Math.round(((originalSizeKb - compressedSizeKb) / originalSizeKb) * 100))
+          : 0;
+
+        resolve({
+          dataUrl,
+          originalSizeKb,
+          compressedSizeKb,
+          savedPercent,
+          format: chosenFormat,
+        });
       };
       img.onerror = () => reject(new Error('Image decode error'));
       img.src = e.target?.result as string;
@@ -111,4 +196,9 @@ export function processAndCompressImage(file: File, maxDimension = 1000, quality
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+export async function processAndCompressImage(file: File, maxDimension = 1200, quality = 0.8): Promise<string> {
+  const result = await compressImageWithStats(file, maxDimension, quality);
+  return result.dataUrl;
 }

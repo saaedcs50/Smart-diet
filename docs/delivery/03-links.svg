@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="170" viewBox="0 0 720 170" dir="rtl">
+  <rect width="720" height="170" fill="#F8F7F9"/>
+  <rect x="30" y="30" rx="20" width="310" height="110" fill="#5B2482"/>
+  <text x="185" y="72" text-anchor="middle" fill="#F2C66D" font-family="Cairo, sans-serif" font-size="13" font-weight="700">رابط المتدرب — يُرسل واتساب</text>
+  <text x="185" y="100" text-anchor="middle" fill="#fff" font-family="Cairo, sans-serif" font-size="16" font-weight="800">https://app.example.com/</text>
+  <text x="185" y="122" text-anchor="middle" fill="#D8C4E9" font-family="Cairo, sans-serif" font-size="12">اليوم · الجسم · التقارير</text>
+  <rect x="380" y="30" rx="20" width="310" height="110" fill="#E21B6D"/>
+  <text x="535" y="72" text-anchor="middle" fill="#fff" font-family="Cairo, sans-serif" font-size="13" font-weight="700">رابط الأخصائي — خاص</text>
+  <text x="535" y="100" text-anchor="middle" fill="#fff" font-family="Cairo, sans-serif" font-size="16" font-weight="800">…/coach + PIN</text>
+  <text x="535" y="122" text-anchor="middle" fill="#FAD1E3" font-family="Cairo, sans-serif" font-size="12">لا يُرسل للمتدرب</text>
+</svg>

@@ -1,4 +1,5 @@
 import { PlanConfig, DayLog, SectionVisibility, ActiveFastingSession } from '../types';
+import { StorageKeys } from './storageKeys';
 
 export const DEFAULT_VISIBLE_SECTIONS: SectionVisibility = {
   scoreCard: true,
@@ -41,7 +42,7 @@ export const DEFAULT_PLAN: PlanConfig = {
   targetWeight: 75,
   targetWaist: 82,
   freezeDaysPerMonth: 2,
-  adminPin: '32184',
+  adminPin: '',
   targetCalories: 2000,
   targetProtein: 140,
   targetCarbs: 180,
@@ -135,9 +136,9 @@ export const DEFAULT_PLAN: PlanConfig = {
   ],
 };
 
-const PLAN_KEY = 'nt_v6_egypt_plan';
-const DAY_PREFIX = 'nt_v6_egypt_day_';
-const ACTIVE_FASTING_KEY = 'smartdiet_active_fasting_session';
+const PLAN_KEY = StorageKeys.plan();
+const DAY_PREFIX = StorageKeys.dayPrefix();
+const ACTIVE_FASTING_KEY = StorageKeys.activeFasting();
 
 /**
  * Parses YYYY-MM-DD into a pure local Date (midnight local time)
@@ -261,8 +262,9 @@ export function loadPlanFromStorage(): PlanConfig {
     const raw = localStorage.getItem(PLAN_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed.adminPin === '1234' || !parsed.adminPin) {
-        parsed.adminPin = '32184';
+      // PIN لم يعد مصدر دخول: امسح القيم القديمة المعروفة إن وُجدت
+      if (parsed.adminPin === '1234' || parsed.adminPin === '32184') {
+        parsed.adminPin = '';
         try {
           localStorage.setItem(PLAN_KEY, JSON.stringify({ ...DEFAULT_PLAN, ...parsed }));
         } catch (e) {}
@@ -340,7 +342,7 @@ export function exportFullBackupJSON(): string {
   const activeFastingSession = getActiveFastingSession();
   let notificationSettings = null;
   try {
-    const rawNotifs = localStorage.getItem('nt_notification_settings');
+    const rawNotifs = localStorage.getItem(StorageKeys.notificationSettings());
     if (rawNotifs) notificationSettings = JSON.parse(rawNotifs);
   } catch (e) {}
 
@@ -364,7 +366,7 @@ export function importFullBackupJSON(jsonString: string): boolean {
       savePlanToStorage(data.plan);
     }
     if (data.notificationSettings) {
-      localStorage.setItem('nt_notification_settings', JSON.stringify(data.notificationSettings));
+      localStorage.setItem(StorageKeys.notificationSettings(), JSON.stringify(data.notificationSettings));
     }
     if (data.activeFastingSession && typeof data.activeFastingSession === 'object') {
       saveActiveFastingSession(data.activeFastingSession);
@@ -379,4 +381,26 @@ export function importFullBackupJSON(jsonString: string): boolean {
     console.error('Failed to import backup', e);
     return false;
   }
+}
+
+export function downloadJsonFile(filename: string, jsonString: string): void {
+  const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+export function getBackupSummary(): { dayCount: number; clientName: string; exportedAt: string } {
+  const plan = loadPlanFromStorage();
+  const dailyLogs = getAllStoredDayLogs();
+  return {
+    dayCount: Object.keys(dailyLogs).length,
+    clientName: plan.clientName || 'المتدرب',
+    exportedAt: new Date().toLocaleDateString('ar-EG', { dateStyle: 'medium' }),
+  };
 }

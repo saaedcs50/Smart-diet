@@ -42,10 +42,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({ plan, activeTab, onChangeT
   }
 
   return (
-    <div className="fixed bottom-3 left-0 right-0 z-40 px-4 pointer-events-none flex justify-center">
-      <nav className="pointer-events-auto w-full max-w-md bg-white/95 dark:bg-[#2D103E]/95 backdrop-blur-xl border border-[#D8C4E9]/80 dark:border-[#542870]/80 rounded-3xl shadow-xl p-1.5 transition-colors">
+    <div className="fixed bottom-4 left-0 right-0 z-40 px-4 pointer-events-none flex justify-center">
+      <nav className="pointer-events-auto w-full max-w-sm bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800/80 rounded-full shadow-lg shadow-slate-900/5 dark:shadow-black/30 p-1.5 transition-all">
         <div 
-          className="grid h-14 items-center"
+          className="grid h-12 items-center"
           style={{ gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))` }}
         >
           {visibleItems.map((item) => {
@@ -54,14 +54,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({ plan, activeTab, onChangeT
               <button
                 key={item.id}
                 onClick={() => onChangeTab(item.id)}
-                className={`flex flex-col items-center justify-center gap-1 py-1.5 px-2 rounded-2xl transition-all cursor-pointer relative ${
+                className={`flex items-center justify-center gap-2 py-2 px-3 rounded-full transition-all duration-200 cursor-pointer relative ${
                   isActive
-                    ? 'bg-[#F1E9F8] dark:bg-[#3D1B53] text-[#E21B6D] dark:text-[#FF4099] font-bold scale-[1.02] shadow-xs'
-                    : 'text-[#6F5A7D] dark:text-[#B792D4] font-medium hover:text-[#3A124D] dark:hover:text-[#EDE5F5] hover:bg-[#F8F7F9] dark:hover:bg-[#3D1B53]/40'
+                    ? 'bg-teal-500 text-white font-black shadow-md shadow-teal-500/25 scale-[1.02]'
+                    : 'text-slate-500 dark:text-slate-400 font-bold hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-slate-800/60'
                 }`}
               >
                 {item.icon}
-                <span className="text-[11px] leading-none tracking-tight">{item.label}</span>
+                <span className="text-xs tracking-tight">{item.label}</span>
               </button>
             );
           })}
@@ -70,4 +70,3 @@ export const BottomNav: React.FC<BottomNavProps> = ({ plan, activeTab, onChangeT
     </div>
   );
 };
-

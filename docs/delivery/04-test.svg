@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="150" viewBox="0 0 720 150" dir="rtl">
+  <rect width="720" height="150" fill="#F8F7F9"/>
+  <g font-family="Cairo, sans-serif">
+    <circle cx="80" cy="70" r="28" fill="#5B2482"/>
+    <text x="80" y="76" text-anchor="middle" fill="#fff" font-size="18" font-weight="800">1</text>
+    <text x="80" y="118" text-anchor="middle" fill="#3A124D" font-size="12" font-weight="700">هيدر بالاسم</text>
+    <circle cx="210" cy="70" r="28" fill="#E21B6D"/>
+    <text x="210" y="76" text-anchor="middle" fill="#fff" font-size="18" font-weight="800">2</text>
+    <text x="210" y="118" text-anchor="middle" fill="#3A124D" font-size="12" font-weight="700">PIN يفتح اللوحة</text>
+    <circle cx="340" cy="70" r="28" fill="#0d9488"/>
+    <text x="340" y="76" text-anchor="middle" fill="#fff" font-size="18" font-weight="800">3</text>
+    <text x="340" y="118" text-anchor="middle" fill="#3A124D" font-size="12" font-weight="700">تصدير خطة</text>
+    <circle cx="470" cy="70" r="28" fill="#E0922D"/>
+    <text x="470" y="76" text-anchor="middle" fill="#fff" font-size="18" font-weight="800">4</text>
+    <text x="470" y="118" text-anchor="middle" fill="#3A124D" font-size="12" font-weight="700">استيراد + تقرير</text>
+    <circle cx="600" cy="70" r="28" fill="#43186A"/>
+    <text x="600" y="76" text-anchor="middle" fill="#fff" font-size="18" font-weight="800">5</text>
+    <text x="600" y="118" text-anchor="middle" fill="#3A124D" font-size="12" font-weight="700">أيقونة PWA</text>
+  </g>
+</svg>

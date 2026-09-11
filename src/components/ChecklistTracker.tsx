@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckSquare, Pill, Check, Sparkles } from 'lucide-react';
+import { CheckSquare, Pill, Check, Circle, Info } from 'lucide-react';
 import { PlanConfig, DayLog } from '../types';
 import { isSectionVisible } from '../utils/storage';
 import { HelpButton } from './FeatureHelpModal';
@@ -22,8 +22,8 @@ export const ChecklistTracker: React.FC<ChecklistTrackerProps> = ({ plan, day, o
     onUpdateDay({
       ...day,
       checks: {
-        ...day.checks,
-        [id]: !day.checks[id],
+        ...(day.checks || {}),
+        [id]: !day.checks?.[id],
       },
     });
   };
@@ -32,41 +32,44 @@ export const ChecklistTracker: React.FC<ChecklistTrackerProps> = ({ plan, day, o
     onUpdateDay({
       ...day,
       supps: {
-        ...day.supps,
-        [id]: !day.supps[id],
+        ...(day.supps || {}),
+        [id]: !day.supps?.[id],
       },
     });
   };
 
-  const completedChecksCount = plan.checklist.filter((c) => day.checks[c.id]).length;
+  const completedChecksCount = (plan.checklist || []).filter((c) => day.checks?.[c.id]).length;
   const isAllChecksDone = completedChecksCount === plan.checklist.length && plan.checklist.length > 0;
 
+  const completedSuppsCount = (plan.supplements || []).filter((s) => day.supps?.[s.id]).length;
+  const isAllSuppsTaken = completedSuppsCount === (plan.supplements?.length || 0) && (plan.supplements?.length || 0) > 0;
+
   return (
-    <div className="bg-white dark:bg-[#2D103E] border border-[#D8C4E9]/80 dark:border-[#542870]/80 rounded-3xl p-5 shadow-sm transition-colors space-y-4">
+    <div className="bg-[var(--app-card)] border border-[var(--app-border)]/80 rounded-3xl p-5 transition-colors space-y-4">
       {/* 1. Daily Habits Checklist */}
       {showChecklist && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-[#0D9488]/10 dark:bg-[#0D9488]/20 text-[#0D9488] dark:text-[#2DD4BF] flex items-center justify-center font-bold text-sm">
+              <div className="w-8 h-8 rounded-xl text-[#0D9488] dark:text-[#2DD4BF] flex items-center justify-center font-bold text-sm bg-teal-50 dark:bg-teal-950/40">
                 <CheckSquare className="w-4 h-4" />
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="font-bold text-[#3A124D] dark:text-[#EDE5F5] text-sm">
-                    قائمة العادات اليومية ✅
+                  <h3 className="font-bold text-[var(--app-text-primary)] text-sm">
+                    قائمة العادات اليومية 
                   </h3>
                   <HelpButton featureId="habitsChecklist" size="sm" />
                 </div>
-                <span className="text-[11px] text-[#6F5A7D] dark:text-[#B792D4]">
+                <span className="text-[12px] text-[var(--app-text-secondary)]">
                   تم إنجاز {completedChecksCount} من {plan.checklist.length} مهام
                 </span>
               </div>
             </div>
 
             {isAllChecksDone && (
-              <span className="px-2.5 py-0.5 rounded-full bg-[#0D9488]/10 dark:bg-[#0D9488]/20 text-[#0D9488] dark:text-[#2DD4BF] font-bold text-[11px] flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-[#0D9488]" />
+              <span className="px-2.5 py-0.5 rounded-full bg-[#0D9488]/10 dark:bg-[#0D9488]/20 text-[#0D9488] dark:text-[#2DD4BF] font-bold text-[12px] flex items-center gap-1">
+                <Circle className="w-3 h-3 text-[#0D9488]" />
                 اكتملت جميع العادات
               </span>
             )}
@@ -74,7 +77,7 @@ export const ChecklistTracker: React.FC<ChecklistTrackerProps> = ({ plan, day, o
 
           <div className="space-y-2">
             {plan.checklist.map((item) => {
-              const isDone = !!day.checks[item.id];
+              const isDone = !!day.checks?.[item.id];
               return (
                 <button
                   key={item.id}
@@ -82,14 +85,14 @@ export const ChecklistTracker: React.FC<ChecklistTrackerProps> = ({ plan, day, o
                   className={`w-full text-right p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 cursor-pointer ${
                     isDone
                       ? 'bg-[#0D9488]/10 dark:bg-[#0D9488]/15 border-[#0D9488]/30 dark:border-[#0D9488]/30'
-                      : 'bg-[#F8F7F9] dark:bg-[#3D1B53]/60 border-[#D8C4E9]/60 dark:border-[#542870]/60 hover:bg-[#F1E9F8]'
+                      : 'bg-[var(--app-card-muted)] border-[var(--app-border)]/60 hover:bg-[var(--app-card-muted)]'
                   }`}
                 >
                   <span
                     className={`text-xs font-semibold leading-relaxed ${
                       isDone
                         ? 'text-[#0D9488] dark:text-[#2DD4BF] line-through opacity-80'
-                        : 'text-[#3A124D] dark:text-[#EDE5F5]'
+                        : 'text-[var(--app-text-primary)]'
                     }`}
                   >
                     {item.label}
@@ -99,7 +102,7 @@ export const ChecklistTracker: React.FC<ChecklistTrackerProps> = ({ plan, day, o
                     className={`w-6 h-6 rounded-xl flex items-center justify-center border transition-colors shrink-0 ${
                       isDone
                         ? 'bg-[#0D9488] border-[#0D9488] text-white'
-                        : 'border-[#D8C4E9] dark:border-[#542870] bg-white dark:bg-[#2D103E]'
+                        : 'border-[var(--app-border)] bg-[var(--app-card)]'
                     }`}
                   >
                     {isDone && <Check className="w-3.5 h-3.5" />}
@@ -111,58 +114,72 @@ export const ChecklistTracker: React.FC<ChecklistTrackerProps> = ({ plan, day, o
         </div>
       )}
 
-      {/* 2. Supplements & Vitamins */}
+      {/* 2. Supplements & Medications */}
       {showSupplements && (
-        <div className={`${showChecklist ? 'pt-3 border-t border-[#D8C4E9]/50 dark:border-[#542870]/50' : ''} space-y-3`}>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-[#5B2482]/10 dark:bg-[#5B2482]/20 text-[#5B2482] dark:text-[#D8C4E9] flex items-center justify-center font-bold text-sm">
-              <Pill className="w-4 h-4" />
+        <div className={`${showChecklist ? 'pt-3 border-t border-[var(--app-border)]/50' : ''} space-y-3`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl text-[var(--app-secondary)] flex items-center justify-center font-bold text-sm bg-purple-50 dark:bg-purple-950/40">
+                <Pill className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="font-bold text-[var(--app-text-primary)] text-xs">
+                  الأدوية والمكملات المقررة 
+                </h4>
+                <span className="text-[12px] text-[var(--app-text-secondary)]">
+                  تم أخذ {completedSuppsCount} من {plan.supplements.length} مكملات
+                </span>
+              </div>
             </div>
-            <div>
-              <h4 className="font-bold text-[#3A124D] dark:text-[#EDE5F5] text-xs">
-                الفيتامينات والمكملات المقررة 💊
-              </h4>
-              <span className="text-[11px] text-[#6F5A7D] dark:text-[#B792D4]">
-                مكملات تساعد على الحرق وصحة المناعة
+
+            {isAllSuppsTaken && (
+              <span className="px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/40 text-[var(--app-secondary)] font-bold text-[12px] flex items-center gap-1">
+                <Circle className="w-3 h-3 text-[var(--app-secondary)]" />
+                اكتملت جميع المكملات
               </span>
-            </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {plan.supplements.map((supp) => {
-              const isTaken = !!day.supps[supp.id];
+              const isTaken = !!day.supps?.[supp.id];
               return (
                 <button
                   key={supp.id}
                   onClick={() => toggleSupp(supp.id)}
-                  className={`p-3 rounded-2xl border transition-all flex items-center justify-between text-right cursor-pointer ${
+                  className={`p-3 rounded-2xl border transition-all flex items-start justify-between text-right cursor-pointer gap-2 ${
                     isTaken
-                      ? 'bg-[#5B2482]/10 dark:bg-[#5B2482]/15 border-[#5B2482]/30 dark:border-[#542870]'
-                      : 'bg-[#F8F7F9] dark:bg-[#3D1B53]/60 border-[#D8C4E9]/60 dark:border-[#542870]/60 hover:bg-[#F1E9F8]'
+                      ? 'bg-[var(--app-secondary)]/10 dark:bg-[var(--app-secondary)]/15 border-[var(--app-secondary)]/30 dark:border-[var(--app-border)]'
+                      : 'bg-[var(--app-card-muted)] border-[var(--app-border)]/60 hover:bg-[var(--app-card-muted)]'
                   }`}
                 >
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <span
                       className={`text-xs font-bold block ${
                         isTaken
-                          ? 'text-[#5B2482] dark:text-[#D8C4E9] line-through opacity-80'
-                          : 'text-[#3A124D] dark:text-[#EDE5F5]'
+                          ? 'text-[var(--app-secondary)] dark:text-[var(--app-secondary)] line-through opacity-80'
+                          : 'text-[var(--app-text-primary)]'
                       }`}
                     >
                       {supp.name}
                     </span>
                     {supp.time && (
-                      <span className="text-[10px] text-[#6F5A7D] dark:text-[#B792D4] font-semibold mt-0.5 block">
+                      <span className="text-[11px] text-[var(--app-text-secondary)] font-semibold mt-0.5 block">
                         ⏰ {supp.time}
+                      </span>
+                    )}
+                    {supp.notes && !isTaken && (
+                      <span className="text-[10px] text-indigo-600 dark:text-indigo-400 bg-indigo-50/70 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded-md mt-1 inline-block border border-indigo-100/70 dark:border-indigo-900/30">
+                        💡 {supp.notes}
                       </span>
                     )}
                   </div>
 
                   <div
-                    className={`w-6 h-6 rounded-xl flex items-center justify-center border transition-colors shrink-0 ${
+                    className={`w-6 h-6 rounded-xl flex items-center justify-center border transition-colors shrink-0 mt-0.5 ${
                       isTaken
-                        ? 'bg-[#5B2482] border-[#5B2482] text-white'
-                        : 'border-[#D8C4E9] dark:border-[#542870] bg-white dark:bg-[#2D103E]'
+                        ? 'bg-[var(--app-secondary)] border-[var(--app-secondary)] text-white'
+                        : 'border-[var(--app-border)] bg-[var(--app-card)]'
                     }`}
                   >
                     {isTaken && <Check className="w-3.5 h-3.5" />}

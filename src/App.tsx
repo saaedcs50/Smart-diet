@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { ActiveTab, DayLog, PlanConfig, PhotoRecord } from './types';
 import { 
   getTodayDateString, 
@@ -23,17 +23,37 @@ import { Navbar } from './components/Navbar';
 import { BottomNav } from './components/BottomNav';
 import { TodayTab } from './components/TodayTab';
 import { BodyTab } from './components/BodyTab';
-import { ReportsTab } from './components/ReportsTab';
 import { PinModal } from './components/PinModal';
-import { CoachModal } from './components/CoachModal';
-import { ImportModal } from './components/ImportModal';
-import { ReportModal } from './components/ReportModal';
-import { PhotoCompareModal } from './components/PhotoCompareModal';
-import { InstallGuideModal } from './components/InstallGuideModal';
-import { VisualReportCard } from './components/VisualReportCard';
-import { NotificationSettingsModal } from './components/NotificationSettingsModal';
-import { OnboardingModal } from './components/OnboardingModal';
+import { unlockCoachSession, logoutCoachSession, isCoachSessionUnlocked } from './utils/coachAuth';
+import { StorageKeys } from './utils/storageKeys';
 import { FeatureHelpProvider } from './components/FeatureHelpModal';
+
+// High-impact Code-Splitting via React.lazy for heavy components & modals
+const ReportsTab = lazy(() => import('./components/ReportsTab').then(m => ({ default: m.ReportsTab })));
+const CoachModal = lazy(() => import('./components/CoachModal').then(m => ({ default: m.CoachModal })));
+const ImportModal = lazy(() => import('./components/ImportModal').then(m => ({ default: m.ImportModal })));
+const ReportModal = lazy(() => import('./components/ReportModal').then(m => ({ default: m.ReportModal })));
+const PhotoCompareModal = lazy(() => import('./components/PhotoCompareModal').then(m => ({ default: m.PhotoCompareModal })));
+const InstallGuideModal = lazy(() => import('./components/InstallGuideModal').then(m => ({ default: m.InstallGuideModal })));
+const VisualReportCard = lazy(() => import('./components/VisualReportCard').then(m => ({ default: m.VisualReportCard })));
+const NotificationSettingsModal = lazy(() => import('./components/NotificationSettingsModal').then(m => ({ default: m.NotificationSettingsModal })));
+const OnboardingModal = lazy(() => import('./components/OnboardingModal').then(m => ({ default: m.OnboardingModal })));
+
+const ModalFallback: React.FC = () => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs">
+    <div className="p-4 rounded-2xl bg-[var(--app-card)] border border-[var(--app-border)] app-overlay-shadow flex items-center gap-3">
+      <div className="w-5 h-5 border-2 border-[var(--app-hero)] border-t-transparent rounded-full animate-spin" />
+      <span className="text-xs font-bold text-[var(--app-text-primary)]">جاري التحميل...</span>
+    </div>
+  </div>
+);
+
+const TabFallback: React.FC = () => (
+  <div className="flex flex-col items-center justify-center p-12 gap-3 text-[var(--app-text-secondary)]">
+    <div className="w-7 h-7 border-3 border-[var(--app-hero)] border-t-transparent rounded-full animate-spin" />
+    <span className="text-xs font-bold">جاري تحميل البيانات والرسوم البيانية...</span>
+  </div>
+);
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
@@ -43,25 +63,37 @@ export default function App() {
   const [day, setDay] = useState<DayLog>(() => loadDayLog(getTodayDateString()));
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(loadNotificationSettings);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem('nt_dark_mode');
+    const saved = localStorage.getItem(StorageKeys.darkMode());
     if (saved !== null) {
       return saved === 'true';
     }
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
-  // Persistent in-session coach state
-  const [coachSessionUnlocked, setCoachSessionUnlocked] = useState<boolean>(() => {
-    return sessionStorage.getItem('smartdiet_coach_unlocked') === 'true';
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Modals state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showStoryCard, setShowStoryCard] = useState(false);
+  const [showCompareModal, setShowCompareModal] = useState(false);
+  const [comparePhotos, setComparePhotos] = useState<PhotoRecord[]>([]);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
+    return localStorage.getItem(StorageKeys.onboardingSeen()) !== 'true';
   });
 
-  // Handle SPA path routing
+  // Coach session security state
+  const [coachSessionUnlocked, setCoachSessionUnlocked] = useState<boolean>(isCoachSessionUnlocked);
+
+  // Sync route / path
   useEffect(() => {
-    const handleLocationChange = () => {
+    const handlePopState = () => {
       setCurrentPath(window.location.pathname);
     };
-    window.addEventListener('popstate', handleLocationChange);
-    return () => window.removeEventListener('popstate', handleLocationChange);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const navigateTo = (path: string) => {
@@ -69,89 +101,74 @@ export default function App() {
     setCurrentPath(path);
   };
 
-  const handleUnlockCoachSession = async (enteredPin: string) => {
-    if (enteredPin === '32184') {
-      setCoachSessionUnlocked(true);
-      sessionStorage.setItem('smartdiet_coach_unlocked', 'true');
-      return true;
-    }
-    return false;
+  const handleUnlockCoachSession = () => {
+    setCoachSessionUnlocked(true);
   };
 
-  const handleLogoutCoachSession = async () => {
+  const handleLogoutCoachSession = () => {
+    logoutCoachSession();
     setCoachSessionUnlocked(false);
-    sessionStorage.removeItem('smartdiet_coach_unlocked');
   };
 
-  // Modals state
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [showCoachModal, setShowCoachModal] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [showStoryCard, setShowStoryCard] = useState(false);
-  const [showCompareModal, setShowCompareModal] = useState(false);
-  const [showInstallGuide, setShowInstallGuide] = useState(false);
-  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
-    return localStorage.getItem('smartdiet_onboarding_seen') !== 'true';
-  });
-  const [comparePhotos, setComparePhotos] = useState<PhotoRecord[]>([]);
-
-  // Toast state
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  // Register SW & check missed reminders on startup
-  useEffect(() => {
-    registerServiceWorker();
-
-    // Check if any reminders were missed while app was closed
-    const missed = getMissedRemindersOnBoot(notificationSettings, plan, day);
-    if (missed.length > 0) {
-      setTimeout(() => {
-        showNotification(`تنبيهات فاتت خلال غيابك 📌: ${missed.join(' | ')}`);
-      }, 1200);
-    }
-  }, []);
-
-  // Sync dark mode class with <html> and <body>
+  // Keep dark mode class in sync on <html>
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
-      document.body.classList.add('dark');
+      localStorage.setItem(StorageKeys.darkMode(), 'true');
     } else {
       document.documentElement.classList.remove('dark');
-      document.body.classList.remove('dark');
+      localStorage.setItem(StorageKeys.darkMode(), 'false');
     }
-    localStorage.setItem('nt_dark_mode', String(isDarkMode));
   }, [isDarkMode]);
 
-  // Keep meal reminders in sync when plan changes
+  // Toast notification helper
+  const showNotification = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
+
+  // Register PWA service worker on boot
   useEffect(() => {
-    if (plan.meals && plan.meals.length > 0) {
-      setNotificationSettings((prev) => {
-        const synced = syncMealRemindersWithPlan(prev, plan.meals);
-        saveNotificationSettings(synced);
-        return synced;
-      });
+    registerServiceWorker().catch(() => {});
+  }, []);
+
+  // Sync meal reminder times if plan changes
+  useEffect(() => {
+    if (plan.meals && notificationSettings.mealReminders?.meals) {
+      const updated = syncMealRemindersWithPlan(notificationSettings, plan.meals);
+      if (JSON.stringify(updated) !== JSON.stringify(notificationSettings)) {
+        setNotificationSettings(updated);
+        saveNotificationSettings(updated);
+      }
     }
   }, [plan.meals]);
 
-  // Periodic Reminder Runner (runs every 30 seconds)
+  // In-app check for notifications interval & catch missed notifications on boot
   useEffect(() => {
-    // Run immediately once
-    checkAndTriggerReminders(notificationSettings, plan, day);
-    const intervalId = window.setInterval(() => {
-      checkAndTriggerReminders(notificationSettings, plan, day);
-    }, 30000);
-    return () => clearInterval(intervalId);
-  }, [notificationSettings, plan, day]);
+    const runChecks = () => {
+      const currentDayLog = loadDayLog(getTodayDateString());
+      checkAndTriggerReminders(notificationSettings, plan, currentDayLog);
+    };
 
-  // Load day whenever currentDate changes
+    runChecks();
+    const missed = getMissedRemindersOnBoot(notificationSettings, plan);
+    if (missed.length > 0) {
+      // Catch up notification quietly handled
+    }
+
+    const interval = setInterval(runChecks, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [notificationSettings, plan]);
+
+  // Load day log when date changes
   useEffect(() => {
-    setDay(loadDayLog(currentDate));
+    const loaded = loadDayLog(currentDate);
+    setDay(loaded);
   }, [currentDate]);
 
-  // Ensure active tab fallback if hidden
+  // Guard tab selection if coach hid tabs
   useEffect(() => {
     if (activeTab === 'body' && !isSectionVisible(plan, 'bodyTab')) {
       setActiveTab('today');
@@ -160,21 +177,21 @@ export default function App() {
     }
   }, [plan, activeTab]);
 
-  const showNotification = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 2800);
-  };
-
-  const handleUpdateDay = (newDay: DayLog) => {
-    setDay(newDay);
-    saveDayLog(currentDate, newDay);
+  const handleUpdateDay = (updated: DayLog) => {
+    setDay(updated);
+    saveDayLog(currentDate, updated);
   };
 
   const handleSavePlan = (newPlan: PlanConfig) => {
     setPlan(newPlan);
     savePlanToStorage(newPlan);
+    showNotification('تم حفظ الخطة بنجاح');
+  };
+
+  const handleSaveNotifications = (newSettings: NotificationSettings) => {
+    setNotificationSettings(newSettings);
+    saveNotificationSettings(newSettings);
+    showNotification('تم تحديث إعدادات التنبيهات');
   };
 
   const handleImportPlanData = (imported: Partial<PlanConfig>) => {
@@ -190,10 +207,20 @@ export default function App() {
     handleSavePlan(updatedPlan);
   };
 
+  const handleFullBackupRestored = () => {
+    const freshPlan = loadPlanFromStorage();
+    setPlan(freshPlan);
+    const freshDay = loadDayLog(currentDate);
+    setDay(freshDay);
+    const freshNotifs = loadNotificationSettings();
+    setNotificationSettings(freshNotifs);
+    showNotification('تم استرجاع النسخة الاحتياطية وتحديث السجلات بنجاح ✅');
+  };
+
   const handleToggleFreeze = () => {
     const nextState = !day.isFreeze;
     handleUpdateDay({ ...day, isFreeze: nextState });
-    showNotification(nextState ? 'تم تفعيل يوم الراحة (Free Day) بنجاح ❄️' : 'تم استئناف الالتزام بالخطة اليومية 🔥');
+    showNotification(nextState ? 'تم تفعيل يوم الراحة (Free Day) بنجاح 🏖️' : 'تم استئناف الالتزام بالخطة اليومية 💪');
   };
 
   const handleOpenComparePhotos = async () => {
@@ -206,20 +233,11 @@ export default function App() {
     setShowCompareModal(true);
   };
 
-  const handleSaveNotifications = (newSettings: NotificationSettings) => {
-    setNotificationSettings(newSettings);
-    showNotification(
-      newSettings.enabled
-        ? 'تم تفعيل نظام التنبيهات الذكية للوجبات 🔔'
-        : 'تم تحديث إعدادات الإشعارات'
-    );
-  };
-
   const score = useMemo(() => calculateDayScore(plan, day), [plan, day]);
   const streak = useMemo(() => calculateStreak(currentDate, plan), [currentDate, plan, day]);
 
   const handleCloseOnboarding = () => {
-    localStorage.setItem('smartdiet_onboarding_seen', 'true');
+    localStorage.setItem(StorageKeys.onboardingSeen(), 'true');
     setShowOnboarding(false);
   };
 
@@ -228,22 +246,24 @@ export default function App() {
       <FeatureHelpProvider>
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors selection:bg-emerald-500 selection:text-white font-sans antialiased">
           {toastMessage && (
-            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 dark:bg-slate-100/95 text-white dark:text-slate-900 text-xs font-bold px-4 py-2.5 rounded-2xl shadow-xl backdrop-blur-md animate-in slide-in-from-top duration-200 text-center max-w-[90%] border border-slate-700 dark:border-slate-300">
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 dark:bg-slate-100/95 text-white dark:text-slate-900 text-xs font-bold px-4 py-2.5 rounded-2xl app-overlay-shadow backdrop-blur-md animate-in slide-in-from-top duration-200 text-center max-w-[90%] border border-slate-700 dark:border-slate-300">
               {toastMessage}
             </div>
           )}
 
-          <CoachModal
-            plan={plan}
-            coachSessionUnlocked={coachSessionUnlocked}
-            onSavePlan={handleSavePlan}
-            onClose={() => navigateTo('/')}
-            onNotify={showNotification}
-            isPageMode={true}
-            onNavigateClient={() => navigateTo('/')}
-            onLogoutCoach={handleLogoutCoachSession}
-            onUnlockSession={handleUnlockCoachSession}
-          />
+          <Suspense fallback={<ModalFallback />}>
+            <CoachModal
+              plan={plan}
+              coachSessionUnlocked={coachSessionUnlocked}
+              onSavePlan={handleSavePlan}
+              onClose={() => navigateTo('/')}
+              onNotify={showNotification}
+              isPageMode={true}
+              onNavigateClient={() => navigateTo('/')}
+              onLogoutCoach={handleLogoutCoachSession}
+              onUnlockSession={handleUnlockCoachSession}
+            />
+          </Suspense>
         </div>
       </FeatureHelpProvider>
     );
@@ -254,7 +274,7 @@ export default function App() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors selection:bg-emerald-500 selection:text-white font-sans antialiased pb-20">
         {/* Toast Notification */}
         {toastMessage && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 dark:bg-slate-100/95 text-white dark:text-slate-900 text-xs font-bold px-4 py-2.5 rounded-2xl shadow-xl backdrop-blur-md animate-in slide-in-from-top duration-200 text-center max-w-[90%] border border-slate-700 dark:border-slate-300">
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 dark:bg-slate-100/95 text-white dark:text-slate-900 text-xs font-bold px-4 py-2.5 rounded-2xl app-overlay-shadow backdrop-blur-md animate-in slide-in-from-top duration-200 text-center max-w-[90%] border border-slate-700 dark:border-slate-300">
             {toastMessage}
           </div>
         )}
@@ -275,114 +295,134 @@ export default function App() {
           streak={streak}
         />
 
-      {/* Main Content Area */}
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-5 pb-24">
-        {activeTab === 'today' && (
-          <TodayTab
-            plan={plan}
-            day={day}
-            currentDate={currentDate}
-            score={score}
-            streak={streak}
-            onUpdateDay={handleUpdateDay}
-            onUpdatePlan={(updater) => {
-              const updated = typeof updater === 'function' ? updater(plan) : updater;
-              handleSavePlan(updated);
-            }}
-            onNotify={showNotification}
-            onOpenReportModal={() => setShowReportModal(true)}
-            onOpenStoryCard={() => setShowStoryCard(true)}
-            onOpenImportModal={() => setShowImportModal(true)}
-            onOpenNotifications={() => setShowNotificationsModal(true)}
-            onToggleFreeze={handleToggleFreeze}
-          />
+        {/* Main Content Area */}
+        <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-5 pb-24">
+          {activeTab === 'today' && (
+            <TodayTab
+              plan={plan}
+              day={day}
+              currentDate={currentDate}
+              score={score}
+              streak={streak}
+              onUpdateDay={handleUpdateDay}
+              onUpdatePlan={(updater) => {
+                const updated = typeof updater === 'function' ? updater(plan) : updater;
+                handleSavePlan(updated);
+              }}
+              onNotify={showNotification}
+              onOpenReportModal={() => setShowReportModal(true)}
+              onOpenStoryCard={() => setShowStoryCard(true)}
+              onOpenImportModal={() => setShowImportModal(true)}
+              onOpenNotifications={() => setShowNotificationsModal(true)}
+              onToggleFreeze={handleToggleFreeze}
+              onDateChange={setCurrentDate}
+            />
+          )}
+
+          {activeTab === 'body' && (
+            <BodyTab
+              plan={plan}
+              day={day}
+              currentDate={currentDate}
+              onUpdateDay={handleUpdateDay}
+              onUpdatePlan={(updater) => {
+                const updated = typeof updater === 'function' ? updater(plan) : updater;
+                handleSavePlan(updated);
+              }}
+              onOpenComparePhotos={handleOpenComparePhotos}
+              onNotify={showNotification}
+            />
+          )}
+
+          {activeTab === 'reports' && (
+            <Suspense fallback={<TabFallback />}>
+              <ReportsTab
+                plan={plan}
+                currentDate={currentDate}
+                isDarkMode={isDarkMode}
+                onNotify={showNotification}
+              />
+            </Suspense>
+          )}
+        </main>
+
+        {/* Bottom Tabs Navigation */}
+        <BottomNav plan={plan} activeTab={activeTab} onChangeTab={setActiveTab} />
+
+        {/* Modals with Suspense */}
+        {showImportModal && (
+          <Suspense fallback={<ModalFallback />}>
+            <ImportModal
+              onImportPlan={handleImportPlanData}
+              onClose={() => setShowImportModal(false)}
+              onNotify={showNotification}
+              onFullBackupRestored={handleFullBackupRestored}
+            />
+          </Suspense>
         )}
 
-        {activeTab === 'body' && (
-          <BodyTab
-            plan={plan}
-            day={day}
-            currentDate={currentDate}
-            onUpdateDay={handleUpdateDay}
-            onUpdatePlan={(updater) => {
-              const updated = typeof updater === 'function' ? updater(plan) : updater;
-              handleSavePlan(updated);
-            }}
-            onOpenComparePhotos={handleOpenComparePhotos}
-            onNotify={showNotification}
-          />
+        {showReportModal && (
+          <Suspense fallback={<ModalFallback />}>
+            <ReportModal
+              plan={plan}
+              day={day}
+              currentDate={currentDate}
+              onClose={() => setShowReportModal(false)}
+              onNotify={showNotification}
+            />
+          </Suspense>
         )}
 
-        {activeTab === 'reports' && (
-          <ReportsTab
-            plan={plan}
-            currentDate={currentDate}
-            isDarkMode={isDarkMode}
-            onNotify={showNotification}
-          />
+        {showStoryCard && (
+          <Suspense fallback={<ModalFallback />}>
+            <VisualReportCard
+              plan={plan}
+              day={day}
+              currentDate={currentDate}
+              onClose={() => setShowStoryCard(false)}
+              onNotify={showNotification}
+            />
+          </Suspense>
         )}
-      </main>
 
-      {/* Bottom Tabs Navigation */}
-      <BottomNav plan={plan} activeTab={activeTab} onChangeTab={setActiveTab} />
+        {showCompareModal && (
+          <Suspense fallback={<ModalFallback />}>
+            <PhotoCompareModal
+              photos={comparePhotos}
+              onClose={() => setShowCompareModal(false)}
+            />
+          </Suspense>
+        )}
 
-      {/* Modals */}
-      {showImportModal && (
-        <ImportModal
-          onImportPlan={handleImportPlanData}
-          onClose={() => setShowImportModal(false)}
-          onNotify={showNotification}
-        />
-      )}
+        {showInstallGuide && (
+          <Suspense fallback={<ModalFallback />}>
+            <InstallGuideModal onClose={() => setShowInstallGuide(false)} />
+          </Suspense>
+        )}
 
-      {showReportModal && (
-        <ReportModal
-          plan={plan}
-          day={day}
-          currentDate={currentDate}
-          onClose={() => setShowReportModal(false)}
-          onNotify={showNotification}
-        />
-      )}
+        {showNotificationsModal && (
+          <Suspense fallback={<ModalFallback />}>
+            <NotificationSettingsModal
+              isOpen={showNotificationsModal}
+              onClose={() => setShowNotificationsModal(false)}
+              plan={plan}
+              settings={notificationSettings}
+              onSave={handleSaveNotifications}
+            />
+          </Suspense>
+        )}
 
-      {showStoryCard && (
-        <VisualReportCard
-          plan={plan}
-          day={day}
-          currentDate={currentDate}
-          onClose={() => setShowStoryCard(false)}
-          onNotify={showNotification}
-        />
-      )}
-
-      {showCompareModal && (
-        <PhotoCompareModal
-          photos={comparePhotos}
-          onClose={() => setShowCompareModal(false)}
-        />
-      )}
-
-      {showInstallGuide && (
-        <InstallGuideModal onClose={() => setShowInstallGuide(false)} />
-      )}
-
-      {showNotificationsModal && (
-        <NotificationSettingsModal
-          isOpen={showNotificationsModal}
-          onClose={() => setShowNotificationsModal(false)}
-          plan={plan}
-          settings={notificationSettings}
-          onSave={handleSaveNotifications}
-        />
-      )}
-
-      {/* Onboarding Flow Modal */}
-      <OnboardingModal
-        isOpen={showOnboarding}
-        onClose={handleCloseOnboarding}
-        plan={plan}
-      />
-    </div>
-  </FeatureHelpProvider>
+        {/* Onboarding Flow Modal */}
+        {showOnboarding && (
+          <Suspense fallback={<ModalFallback />}>
+            <OnboardingModal
+              isOpen={showOnboarding}
+              onClose={handleCloseOnboarding}
+              plan={plan}
+            />
+          </Suspense>
+        )}
+      </div>
+    </FeatureHelpProvider>
   );
 }

@@ -1,5 +1,6 @@
 import { PlanConfig } from '../types';
 import { DEFAULT_PLAN, DEFAULT_VISIBLE_SECTIONS } from './storage';
+import { BRAND, brandCopy } from '../config/brand';
 
 /**
  * Encodes a PlanConfig into a safe Base64 sync payload string.
@@ -31,7 +32,7 @@ export function generatePlanReadableText(plan: PlanConfig): string {
   const waterCups = Math.round((plan.dailyWaterGoalMl || 3000) / 250);
 
   let text = `🩺 *الخطة الغذائية والإرشادات العلاجية المعتمدة* 📋\n`;
-  text += `👩‍⚕️ *د. شيماء - Smart Diet Clinic*\n`;
+  text += `👩‍⚕️ *${BRAND.doctorName} - ${BRAND.clinicName}*\n`;
   text += `👤 *المتدرب:* ${plan.clientName || 'المتدرب'}\n`;
   text += `📅 *تاريخ الإصدار:* ${dateStr}\n`;
 
@@ -123,7 +124,7 @@ export function generatePlanReadableText(plan: PlanConfig): string {
 
   if (plan.tips && plan.tips.length > 0) {
     text += `\n═══════════════════════\n`;
-    text += `💡 *إرشادات وتوجيهات د. شيماء:*\n`;
+    text += `💡 *إرشادات وتوجيهات ${BRAND.doctorName}:*\n`;
     plan.tips.forEach((tip) => {
       text += `• ${tip}\n`;
     });
@@ -138,9 +139,9 @@ export function generatePlanReadableText(plan: PlanConfig): string {
 export function generatePlanSyncCode(plan: PlanConfig): string {
   const encodedSyncData = encodePlanSyncData(plan);
 
-  let text = `📲 *كود تفعيل الخطة في تطبيق Smart Diet:*\n`;
+  let text = `📲 *كود تفعيل الخطة في تطبيق ${BRAND.appName}:*\n`;
   text += `👤 *المتدرب:* ${plan.clientName || 'المتدرب'}\n`;
-  text += `💡 *طريقة الاستخدام:* انسخ الرسالة بالكامل وافتح التطبيق واضغط على *"📥 إضافة خطة الدكتورة"* ثم الصق النص.\n\n`;
+  text += `💡 *طريقة الاستخدام:* انسخ الرسالة بالكامل وافتح التطبيق واضغط على *"📥 ${brandCopy.addPlanCta}"* ثم الصق النص.\n\n`;
   text += `#START_PLAN_DATA#\n`;
   text += `${encodedSyncData}\n`;
   text += `#END_PLAN_DATA#`;
@@ -160,7 +161,7 @@ export function generateWhatsAppPlanMessage(plan: PlanConfig): string {
   text += `═══════════════════════\n`;
   text += `📲 *طريقة تفعيل الخطة في التطبيق:*\n`;
   text += `1. انسخ هذه الرسالة بالكامل من الواتساب.\n`;
-  text += `2. افتح التطبيق واضغط على زر *"📥 إضافة خطة الدكتورة"* في أعلى الصفحة.\n`;
+  text += `2. افتح التطبيق واضغط على زر *"📥 ${brandCopy.addPlanCta}"* في أعلى الصفحة.\n`;
   text += `3. الصق النص واضغط *"تطبيق الخطة"* وسيتم ضبط كل شيء تلقائياً! ✨\n\n`;
 
   text += `#START_PLAN_DATA#\n`;

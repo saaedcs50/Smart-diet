@@ -1,7 +1,12 @@
-// OS-Resilient Service Worker for Nutrition Tracker PWA & Push Notifications
-const CACHE_NAME = 'nutrition-tracker-v2';
+// Service Worker — PWA notifications
+// BRAND_INJECT_START
+const CACHE_NAME = "nutrition-smart-diet-v4";
+const BRAND_APP_NAME = "Smart Diet";
+const BRAND_SHORT_NAME = "Smart Diet";
+const BRAND_LOGO_PATH = "/brands/dr-shimaa.png";
+// BRAND_INJECT_END
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -19,7 +24,9 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Handle incoming messages from the client app (Health Check, Immediate Trigger, Ping)
+const defaultReminderTitle = () => `تذكير ${BRAND_SHORT_NAME || BRAND_APP_NAME} 🥗`;
+const logoSrc = () => (typeof BRAND_LOGO_PATH !== 'undefined' && BRAND_LOGO_PATH ? BRAND_LOGO_PATH : '/icon.svg');
+
 self.addEventListener('message', (event) => {
   if (!event.data) return;
 
@@ -34,11 +41,11 @@ self.addEventListener('message', (event) => {
     }
   } else if (event.data.type === 'SCHEDULED_NOTIFICATION_TRIGGER') {
     const { title, body, tag, url, vibrate } = event.data;
-    self.registration.showNotification(title || 'تذكير متابع التغذية 🥗', {
+    self.registration.showNotification(title || defaultReminderTitle(), {
       body: body || 'حان موعد وجبتك أو شرب الماء!',
-      icon: '/icon.svg',
-      badge: '/icon.svg',
-      tag: tag || 'nutrition-reminder',
+      icon: logoSrc(),
+      badge: logoSrc(),
+      tag: tag || 'clinic-reminder',
       vibrate: vibrate || [200, 100, 200, 100, 300],
       renotify: true,
       data: { url: url || '/', timestamp: Date.now() },
@@ -50,13 +57,12 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Handle Push event from Web Push Server or local push mock
 self.addEventListener('push', (event) => {
   let data = {
-    title: 'تذكير دايت د. شيماء 🥗',
+    title: defaultReminderTitle(),
     body: 'حان موعد وجبتك المحددة أو شرب الماء!',
-    icon: '/icon.svg',
-    badge: '/icon.svg',
+    icon: logoSrc(),
+    badge: logoSrc(),
     data: { url: '/' },
   };
 
@@ -72,24 +78,23 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: data.icon || '/icon.svg',
-    badge: data.badge || '/icon.svg',
+    icon: data.icon || logoSrc(),
+    badge: data.badge || logoSrc(),
     vibrate: data.vibrate || [200, 100, 200, 100, 300],
     data: data.data || { url: '/' },
     actions: [
       { action: 'open', title: 'فتح التطبيق 📱' },
       { action: 'close', title: 'إغلاق ✕' },
     ],
-    tag: data.tag || 'nutrition-reminder',
+    tag: data.tag || 'clinic-reminder',
     renotify: true,
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title, options)
+    self.registration.showNotification(data.title || defaultReminderTitle(), options)
   );
 });
 
-// Handle notification click with intelligent window focus or navigation
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
@@ -101,7 +106,6 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Check if window is already open
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
         if (client.url.includes(self.location.origin) && 'focus' in client) {
@@ -113,7 +117,6 @@ self.addEventListener('notificationclick', (event) => {
           return client.focus();
         }
       }
-      // If no window is open, open a new window
       if (self.clients.openWindow) {
         return self.clients.openWindow(urlToOpen);
       }

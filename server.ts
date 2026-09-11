@@ -1,7 +1,9 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import express from 'express';
 import path from 'path';
-import { apiRouter } from './src/server/api';
+import { apiRouter, validateSecurityConfig } from './src/server/api';
+import { BRAND } from './src/config/brand';
 
 const app = express();
 const PORT = 3000;
@@ -12,6 +14,9 @@ app.use(express.json({ limit: '200kb' }));
 app.use(apiRouter);
 
 async function start() {
+  // يوقف السيرفر فورًا (قبل ما يستقبل أي طلب) لو إعدادات الأمان ناقصة في الإنتاج
+  validateSecurityConfig();
+
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -28,7 +33,7 @@ async function start() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Smart Diet Server listening on port ${PORT}`);
+    console.log(`${BRAND.appName} Server listening on port ${PORT}`);
   });
 }
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Lightbulb, 
   Share2, 
@@ -7,12 +7,17 @@ import {
   Activity, 
   CheckSquare, 
   Bell,
-  Sparkles
+  Sliders,
+  Sparkles,
+  Flame
 } from 'lucide-react';
 import { PlanConfig, DayLog } from '../types';
+import { BRAND } from '../config/brand';
 import { ScoreBreakdown } from '../utils/calculations';
 import { isSectionVisible } from '../utils/storage';
-import { ScoreCard } from './ScoreCard';
+import { ActivityRings } from './ActivityRings';
+import { WeekStripCalendar } from './WeekStripCalendar';
+import { NextMealSpotlight } from './NextMealSpotlight';
 import { MealCard } from './MealCard';
 import { WaterTracker } from './WaterTracker';
 import { SleepMoodTracker } from './SleepMoodTracker';
@@ -23,7 +28,9 @@ import { FastingTimer } from './FastingTimer';
 import { MedicationsTracker } from './MedicationsTracker';
 import { CycleTrackerCard } from './CycleTrackerCard';
 import { getCycleInfo } from '../utils/cycleTracking';
+import { getTodayFastingStatus } from '../utils/fasting';
 import { HelpButton } from './FeatureHelpModal';
+import { CardCustomizerModal } from './CardCustomizerModal';
 
 interface TodayTabProps {
   plan: PlanConfig;
@@ -39,6 +46,7 @@ interface TodayTabProps {
   onOpenImportModal: () => void;
   onOpenNotifications?: () => void;
   onToggleFreeze: () => void;
+  onDateChange?: (newDate: string) => void;
 }
 
 export const TodayTab: React.FC<TodayTabProps> = ({
@@ -55,57 +63,111 @@ export const TodayTab: React.FC<TodayTabProps> = ({
   onOpenImportModal,
   onOpenNotifications,
   onToggleFreeze,
+  onDateChange,
 }) => {
+  const [isCardCustomizerOpen, setIsCardCustomizerOpen] = useState(false);
   const cycleInfo = plan.cycleTracking?.enabled ? getCycleInfo(plan.cycleTracking, currentDate) : null;
+  const fastingStatus = useMemo(() => getTodayFastingStatus(plan, day, currentDate), [plan, day, currentDate]);
+
+  // Direct practical greeting
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return { text: 'صباح الخير' };
+    if (hour >= 12 && hour < 17) return { text: 'مساء الخير' };
+    if (hour >= 17 && hour < 22) return { text: 'مساء الخير' };
+    return { text: 'ليلة سعيدة' };
+  }, []);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-150">
-      {/* Optional Top Subtle Cycle Phase Badge */}
+    <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-200">
+      {/* 1. Clear, direct greeting banner */}
+      <div className="flex items-center justify-between px-1">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-base sm:text-lg font-black text-slate-800 dark:text-slate-100">
+              {greeting.text}، {plan.clientName || 'المتدرب'}
+            </h1>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+            متابعة الالتزام بالخطة الغذائية اليومية
+          </p>
+        </div>
+
+        {/* Section Focus & Customizer Button */}
+        <button
+          type="button"
+          onClick={() => setIsCardCustomizerOpen(true)}
+          title="تخصيص البطاقات ونمط التركيز لتقليل التشتت"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 hover:scale-105 transition-all cursor-pointer shadow-xs"
+        >
+          <Sliders className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">تخصيص العرض</span>
+        </button>
+      </div>
+
+      {/* 2. Apple Fitness / iOS Style Horizontal Week Strip Calendar */}
+      {onDateChange && (
+        <WeekStripCalendar
+          currentDate={currentDate}
+          onDateChange={onDateChange}
+        />
+      )}
+
+      {/* Optional Subtle Cycle Phase Badge */}
       {plan.cycleTracking?.enabled &&
         plan.cycleTracking?.showPhaseToClient !== false &&
         cycleInfo &&
         cycleInfo.dayOfCycle !== null && (
-          <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-gradient-to-r from-rose-50/90 via-pink-50/60 to-purple-50/40 dark:from-rose-950/40 dark:via-pink-950/20 dark:to-purple-950/20 border border-rose-200/70 dark:border-rose-900/50 text-xs shadow-xs">
+          <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200/70 dark:border-rose-900/50 text-xs">
             <div className="flex items-center gap-2 font-bold text-rose-900 dark:text-rose-200">
               <span className="text-sm">{cycleInfo.icon}</span>
               <span>
                 اليوم {cycleInfo.dayOfCycle} من الدورة • {cycleInfo.phaseName}
               </span>
             </div>
-            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${cycleInfo.colorClass.badge}`}>
-              {cycleInfo.isPeriodDay ? 'أيام الحيض 🩸' : cycleInfo.phaseBadge}
+            <span className={`text-[12px] font-bold px-2.5 py-0.5 rounded-full border ${cycleInfo.colorClass.badge}`}>
+              {cycleInfo.isPeriodDay ? 'أيام الحيض ' : cycleInfo.phaseBadge}
             </span>
           </div>
         )}
 
-      {/* 1. Score & Streak Card */}
+      {/* 3. Apple Health / iOS Fitness Concentric Activity Rings Card */}
       {isSectionVisible(plan, 'scoreCard') && (
-        <ScoreCard
+        <ActivityRings
           score={score}
           streak={streak}
           isFreeze={day.isFreeze}
-          currentDate={currentDate}
           plan={plan}
+          day={day}
           onToggleFreeze={onToggleFreeze}
           onOpenReportModal={onOpenReportModal}
           onOpenStoryCard={onOpenStoryCard}
         />
       )}
 
-      {/* 2. Doctor Tips Banner */}
+      {/* 4. Lifesum Next Meal Spotlight */}
+      {isSectionVisible(plan, 'mealsList') && (
+        <NextMealSpotlight
+          plan={plan}
+          day={day}
+          onUpdateDay={onUpdateDay}
+        />
+      )}
+
+      {/* 5. Doctor Tips & Guidance Banner */}
       {isSectionVisible(plan, 'tipsBanner') && plan.tips && plan.tips.length > 0 && (
-        <div className="p-4 sm:p-5 rounded-3xl bg-[#E0922D]/10 dark:bg-[#E0922D]/15 border border-[#E0922D]/30 dark:border-[#E0922D]/30 space-y-1.5 shadow-xs">
-          <div className="flex items-center gap-2 text-xs font-bold text-[#E0922D] dark:text-[#F2C66D]">
-            <Lightbulb className="w-4 h-4 text-[#E0922D] dark:text-[#F2C66D]" />
-            <span>توجيه اليوم من د. شيماء:</span>
+        <div className="p-4 sm:p-5 rounded-3xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/60 space-y-1.5 transition-all">
+          <div className="flex items-center gap-2 text-xs font-black text-amber-700 dark:text-amber-400">
+            <Lightbulb className="w-4 h-4" />
+            <span>توجيه وإرشاد اليوم من {BRAND.doctorName}:</span>
           </div>
-          <p className="text-xs sm:text-sm text-[#3A124D] dark:text-[#EDE5F5] leading-relaxed font-medium">
+          <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed font-semibold">
             "{plan.tips[Math.abs(currentDate.split('-').reduce((a, b) => a + Number(b), 0)) % plan.tips.length]}"
           </p>
         </div>
       )}
 
-      {/* 3. Vitals: Macros & Fasting (if enabled) */}
+      {/* 6. Vitals: Macros & Fasting (if enabled) */}
       {(isSectionVisible(plan, 'macrosTracker') || isSectionVisible(plan, 'fastingTimer')) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {isSectionVisible(plan, 'macrosTracker') && (
@@ -127,7 +189,7 @@ export const TodayTab: React.FC<TodayTabProps> = ({
         </div>
       )}
 
-      {/* 3.5 Medications & Interaction Tracker (if configured & visible) */}
+      {/* 6.5 Medications Tracker (if configured & visible) */}
       {isSectionVisible(plan, 'medicationsTracker') && (
         <MedicationsTracker
           plan={plan}
@@ -136,7 +198,7 @@ export const TodayTab: React.FC<TodayTabProps> = ({
         />
       )}
 
-      {/* 3.6 Menstrual Cycle Tracker (if configured & visible) */}
+      {/* 6.6 Menstrual Cycle Tracker (if configured & visible) */}
       {plan.cycleTracking?.enabled && isSectionVisible(plan, 'cycleTracker') && (
         <CycleTrackerCard
           plan={plan}
@@ -148,38 +210,39 @@ export const TodayTab: React.FC<TodayTabProps> = ({
         />
       )}
 
-      {/* 4. Planned Meals List */}
+      {/* 7. All Planned Meals Food Diary */}
       {isSectionVisible(plan, 'mealsList') && plan.meals && plan.meals.length > 0 && (
-        <section className="space-y-3.5">
+        <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-[#5B2482]/10 dark:bg-[#5B2482]/30 text-[#5B2482] dark:text-[#D8C4E9] flex items-center justify-center font-bold">
+              <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 flex items-center justify-center font-bold">
                 <Utensils className="w-4 h-4" />
               </div>
-              <h3 className="font-bold text-[#3A124D] dark:text-[#EDE5F5] text-sm sm:text-base">
-                الوجبات المقررة اليوم ({plan.meals.length})
+              <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm sm:text-base">
+                يوميات وجبات اليوم ({plan.meals.length})
               </h3>
               <HelpButton featureId="mealsList" size="sm" />
             </div>
-            <div className="flex items-center gap-3">
-              {onOpenNotifications && (
-                <button
-                  onClick={onOpenNotifications}
-                  className="text-xs font-semibold text-[#6F5A7D] hover:text-[#E21B6D] dark:text-[#B792D4] dark:hover:text-[#FF4099] transition-colors flex items-center gap-1 cursor-pointer"
-                  title="مواعيد الوجبات"
-                >
-                  <Bell className="w-3.5 h-3.5" />
-                  <span>مواعيد الوجبات</span>
-                </button>
-              )}
-            </div>
+            {onOpenNotifications && (
+              <button
+                type="button"
+                onClick={onOpenNotifications}
+                className="text-xs font-bold text-slate-500 hover:text-teal-600 dark:text-slate-400 dark:hover:text-teal-400 transition-colors flex items-center gap-1 cursor-pointer"
+                title="مواعيد الوجبات"
+              >
+                <Bell className="w-3.5 h-3.5" />
+                <span>مواعيد الوجبات</span>
+              </button>
+            )}
           </div>
 
           <div className="space-y-3">
-            {plan.meals.map((meal) => (
+            {plan.meals.map((meal, idx) => (
               <MealCard
                 key={meal.id}
                 meal={meal}
+                index={idx}
+                fastingStatus={fastingStatus}
                 state={day.meals[meal.id]}
                 onUpdate={(st) =>
                   onUpdateDay({
@@ -196,18 +259,19 @@ export const TodayTab: React.FC<TodayTabProps> = ({
         </section>
       )}
 
-      {/* 5. Hydration & Wellness Section */}
-      <section className="space-y-4">
-        {/* Water Tracker */}
-        {isSectionVisible(plan, 'waterTracker') && (
+      {/* 8. Noom/Lifesum Interactive Water Tracker */}
+      {isSectionVisible(plan, 'waterTracker') && (
+        <section>
           <WaterTracker
             plan={plan}
             day={day}
             onUpdateDay={onUpdateDay}
           />
-        )}
+        </section>
+      )}
 
-        {/* Sleep, Mood & Workout */}
+      {/* 9. Sleep, Mood & Movement */}
+      <section>
         <SleepMoodTracker
           plan={plan}
           day={day}
@@ -215,7 +279,7 @@ export const TodayTab: React.FC<TodayTabProps> = ({
         />
       </section>
 
-      {/* 6. Habits & Supplements */}
+      {/* 10. Habits & Supplements */}
       <section>
         <ChecklistTracker
           plan={plan}
@@ -224,7 +288,7 @@ export const TodayTab: React.FC<TodayTabProps> = ({
         />
       </section>
 
-      {/* 7. Symptoms & Direct Doctor Message */}
+      {/* 11. Symptoms & Doctor Notes */}
       <section>
         <SymptomsAndNotes
           plan={plan}
@@ -233,19 +297,34 @@ export const TodayTab: React.FC<TodayTabProps> = ({
         />
       </section>
 
-      {/* 8. Bottom Quick Share Report Button */}
+      {/* 12. Bottom WhatsApp Quick Share Report Button */}
       {isSectionVisible(plan, 'quickReportBtn') && (
         <div className="pt-2">
           <button
+            type="button"
             onClick={onOpenReportModal}
-            className="w-full py-4 px-6 rounded-3xl bg-[#E21B6D] hover:bg-[#C2135B] text-white font-bold text-sm sm:text-base shadow-lg shadow-[#E21B6D]/25 transition-all flex items-center justify-center gap-2.5 active:scale-[0.99] cursor-pointer"
+            className="w-full py-3.5 min-h-[48px] px-6 rounded-3xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-black text-sm sm:text-base transition-all shadow-lg shadow-teal-500/25 flex items-center justify-center gap-2.5 cursor-pointer hover:scale-[1.01]"
           >
             <Share2 className="w-5 h-5" />
-            <span>إرسال تقرير اليوم لدكتورة شيماء</span>
+            <span>إرسال تقرير اليوم لـ{BRAND.doctorNameAlt}</span>
           </button>
         </div>
+      )}
+
+      {/* Card Customizer Modal */}
+      {isCardCustomizerOpen && (
+        <CardCustomizerModal
+          isOpen={isCardCustomizerOpen}
+          onClose={() => setIsCardCustomizerOpen(false)}
+          plan={plan}
+          onUpdatePlan={(updated) => {
+            if (onUpdatePlan) {
+              onUpdatePlan(() => updated);
+            }
+          }}
+          onNotify={onNotify || (() => {})}
+        />
       )}
     </div>
   );
 };
-

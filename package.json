@@ -4,7 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "brand": "node scripts/apply-brand.mjs",
+    "new-client": "node scripts/new-client.mjs",
+    "predev": "node scripts/apply-brand.mjs",
     "dev": "tsx server.ts",
+    "prebuild": "node scripts/apply-brand.mjs",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "preview": "vite preview",

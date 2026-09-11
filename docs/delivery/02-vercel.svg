@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="160" viewBox="0 0 720 160" dir="rtl">
+  <rect width="720" height="160" fill="#F8F7F9"/>
+  <text x="360" y="28" text-anchor="middle" fill="#5B2482" font-family="Cairo, sans-serif" font-size="16" font-weight="800">Vercel → Settings → Environment Variables</text>
+  <rect x="40" y="50" rx="14" width="200" height="80" fill="#fff" stroke="#5B2482" stroke-width="2"/>
+  <text x="140" y="85" text-anchor="middle" fill="#5B2482" font-family="Cairo, sans-serif" font-size="14" font-weight="700">COACH_PIN</text>
+  <text x="140" y="108" text-anchor="middle" fill="#6F5A7D" font-family="Cairo, sans-serif" font-size="12">رمز فتح اللوحة</text>
+  <rect x="260" y="50" rx="14" width="200" height="80" fill="#fff" stroke="#E21B6D" stroke-width="2"/>
+  <text x="360" y="85" text-anchor="middle" fill="#E21B6D" font-family="Cairo, sans-serif" font-size="14" font-weight="700">SESSION_SECRET</text>
+  <text x="360" y="108" text-anchor="middle" fill="#6F5A7D" font-family="Cairo, sans-serif" font-size="12">32+ حرف عشوائي</text>
+  <rect x="480" y="50" rx="14" width="200" height="80" fill="#fff" stroke="#0d9488" stroke-width="2"/>
+  <text x="580" y="85" text-anchor="middle" fill="#0d9488" font-family="Cairo, sans-serif" font-size="14" font-weight="700">GEMINI_API_KEY</text>
+  <text x="580" y="108" text-anchor="middle" fill="#6F5A7D" font-family="Cairo, sans-serif" font-size="12">اختياري للذكاء الاصطناعي</text>
+</svg>

@@ -1,0 +1,447 @@
+import { EgyptianMedication } from './types';
+
+export const DIABETES_ENDOCRINE_MEDS: EgyptianMedication[] = [
+  // ==========================================
+  // Biguanides (الميتفورمين ومنظمات السكر)
+  // ==========================================
+  {
+    id: 'glucophage_500_850_1000',
+    tradeName: 'جلوكوفاج (Glucophage)',
+    tradeNameEn: 'Glucophage 500mg, 850mg, 1000mg',
+    scientificName: 'ميتفورمين هيدروكلوريد (Metformin HCl)',
+    category: 'diabetes',
+    categoryAr: 'علاج السكري ومقاومة الأنسولين وتكيس المبايض',
+    categoryIcon: '🩸',
+    defaultTiming: 'وسط أو في نهاية وجبة رئيسية مع كوب ماء كبير',
+    dosageForm: 'أقراص مغلفة',
+    commonDoses: ['500 مجم', '850 مجم', '1000 مجم'],
+    clinicalNotes: 'حجر الأساس لعلاج مقاومة الأنسولين وتكيس المبايض، يؤخذ وسط الأكل لتجنب اضطرابات المعدة والغازات. الاستخدام المزمن يستدعي فحص مستوى فيتامين B12 دورياً.',
+    searchTokens: ['جلوكوفاج', 'glucophage', 'metformin', 'ميتفورمين', 'سكر', 'مقاومة انسولين', 'تكيس']
+  },
+  {
+    id: 'glucophage_xr',
+    tradeName: 'جلوكوفاج إكس آر ممتد المفعول (Glucophage XR)',
+    tradeNameEn: 'Glucophage XR 500mg, 750mg, 1000mg',
+    scientificName: 'ميتفورمين هيدروكلوريد ممتد الإفراز (Metformin XR)',
+    category: 'diabetes',
+    categoryAr: 'منظم السكر اللطيف على المعدة ممتد المفعول',
+    categoryIcon: '🩸',
+    defaultTiming: 'مع وجبة العشاء ليلاً (تبلع الحبة كاملة دون كسر أو مضغ)',
+    dosageForm: 'أقراص ممتدة المفعول XR',
+    commonDoses: ['500 مجم XR', '750 مجم XR', '1000 مجم XR'],
+    clinicalNotes: 'تقنية الإفراز البطيء تمنع الغثيان والإسهال تماماً مقارنة بالعادي. لا تكسر الحبة نهائياً.',
+    searchTokens: ['جلوكوفاج اكس ار', 'glucophage xr', 'ممتد المفعول', 'معده حساسه', 'عشاء']
+  },
+  {
+    id: 'cidophage_500_850_1000',
+    tradeName: 'سيدوفاج (Cidophage)',
+    tradeNameEn: 'Cidophage 500mg, 850mg, 1000mg / Cidophage Retard 850mg',
+    scientificName: 'ميتفورمين (شركة سيد للأدوية)',
+    category: 'diabetes',
+    categoryAr: 'منظم السكر ومقاومة الأنسولين المصري الشهير',
+    categoryIcon: '🩸',
+    defaultTiming: 'مع الوجبات الرئيسية 2-3 مرات يومياً',
+    dosageForm: 'أقراص / أقراص ريتارد',
+    commonDoses: ['500 مجم', '850 مجم', '1000 مجم', 'Retard 850mg'],
+    clinicalNotes: 'المنتج المصري الأكثر انتشاراً لعلاج مقاومة الأنسولين وضبط السكر والتخسيس المساعد.',
+    searchTokens: ['سيدوفاج', 'cidophage', 'metformin', 'ميتفورمين', 'سيد']
+  },
+
+  // ==========================================
+  // SGLT-2 Inhibitors (طاردات السكر عبر البول)
+  // ==========================================
+  {
+    id: 'forxiga_5_10',
+    tradeName: 'فورسيجا 10 مجم (Forxiga)',
+    tradeNameEn: 'Forxiga 5mg, 10mg',
+    scientificName: 'داباجليفلوزين (Dapagliflozin)',
+    category: 'diabetes',
+    categoryAr: 'طارد السكر الكلوي وحامي القلب والكلى والوزن',
+    categoryIcon: '🩸',
+    defaultTiming: 'صباحاً مع كوب ماء كبير مع أو بدون طعام',
+    dosageForm: 'أقراص مغلفة',
+    commonDoses: ['5 مجم', '10 مجم'],
+    clinicalNotes: 'يطرد 70 جرام سكر يومياً عبر البول (حوالي 280 سعرة حرارية)، يقلل الوزن ويحمي من قصور القلب وتدهور الكلى. هام جداً: شرب 2.5-3 لتر ماء يومياً والعناية بالنظافة الشخصية لتفادي التهابات المسالك.',
+    searchTokens: ['فورسيجا', 'forxiga', 'dapagliflozin', 'داباجليفلوزين', 'طارد السكر', 'حماية الكلى', 'تخسيس سكر']
+  },
+  {
+    id: 'xigduo_xr',
+    tradeName: 'زيجدو إكس آر (Xigduo XR)',
+    tradeNameEn: 'Xigduo XR 5/1000mg, 10/1000mg',
+    scientificName: 'داباجليفلوزين + ميتفورمين ممتد المفعول (Dapagliflozin + Metformin XR)',
+    category: 'diabetes',
+    categoryAr: 'علاج مركب ثنائي متطور للسكر وضبط الوزن',
+    categoryIcon: '🩸',
+    defaultTiming: 'صباحاً مع وجبة الإفطار مع وفرة من الماء',
+    dosageForm: 'أقراص ممتدة المفعول',
+    commonDoses: ['5/1000 مجم', '10/1000 مجم'],
+    clinicalNotes: 'يجمع بين زيادة حساسية الأنسولين وطرد السكر الفائض في حبة واحدة يومياً.',
+    searchTokens: ['زيجدو', 'xigduo', 'xigduo xr', 'dapagliflozin metformin', 'سكر مركب']
+  },
+  {
+    id: 'jardiance_10_25',
+    tradeName: 'جارديانس 10 / 25 مجم (Jardiance)',
+    tradeNameEn: 'Jardiance 10mg, 25mg',
+    scientificName: 'إمباجليفلوزين (Empagliflozin)',
+    category: 'diabetes',
+    categoryAr: 'علاج السكر وحامي شرايين القلب وقصور العضلة',
+    categoryIcon: '🩸',
+    defaultTiming: 'صباحاً مع كوب ماء كبير',
+    dosageForm: 'أقراص مغلفة',
+    commonDoses: ['10 مجم', '25 مجم'],
+    clinicalNotes: 'معتمد عالمياً لحماية القلب والكلى لدى مرضى السكري وحتى غير المصابين بالسكري الذين يعانون من قصور القلب. يفضل الامتناع عن الكيتو دايت الصارم أثنائه لتجنب الحموضة الكيتونية (Euglycemic DKA).',
+    searchTokens: ['جارديانس', 'jardiance', 'empagliflozin', 'إمباجليفلوزين', 'قلب وكلى']
+  },
+  {
+    id: 'synjardy_12_5_1000',
+    tradeName: 'سينجاردي (Synjardy)',
+    tradeNameEn: 'Synjardy 5/850, 5/1000, 12.5/1000mg',
+    scientificName: 'إمباجليفلوزين + ميتفورمين (Empagliflozin + Metformin)',
+    category: 'diabetes',
+    categoryAr: 'علاج سكر مركب عالي الفعالية لحماية القلب وخفض التراكمي',
+    categoryIcon: '🩸',
+    defaultTiming: 'مرتين يومياً مع وجبات الإفطار والغداء',
+    dosageForm: 'أقراص مغلفة',
+    commonDoses: ['5/1000 مجم', '12.5/1000 مجم'],
+    clinicalNotes: 'يساعد على خفض السكر التراكمي بمقدار 1.5 - 2% مع خفض ضغط الدم والوزن الزائد.',
+    searchTokens: ['سينجاردي', 'synjardy', 'empagliflozin metformin', 'سكر مركب']
+  },
+
+  // ==========================================
+  // DPP-4 Inhibitors (الجليبتينات)
+  // ==========================================
+  {
+    id: 'januvia_100',
+    tradeName: 'جانوفيا 100 مجم (Januvia)',
+    tradeNameEn: 'Januvia 100mg, 50mg',
+    scientificName: 'سيتاجليبتين (Sitagliptin)',
+    category: 'diabetes',
+    categoryAr: 'مثبطات DPP-4 الآمنة المنظمة للسكر الذكية',
+    categoryIcon: '🩸',
+    defaultTiming: 'مرة واحدة يومياً في أي وقت مع أو بدون طعام',
+    dosageForm: 'أقراص مغلفة',
+    commonDoses: ['25 مجم', '50 مجم', '100 مجم'],
+    clinicalNotes: 'دواء ذكي يعمل فقط عند ارتفاع سكر الدم، وبالتالي لا يسبب هبوطاً حاداً في السكر ولا يزيد الوزن.',
+    searchTokens: ['جانوفيا', 'januvia', 'sitagliptin', 'سيتاجليبتين', 'سكر ذكي']
+  },
+  {
+    id: 'janumet_50_1000',
+    tradeName: 'جانوميت / جانوميت إكس آر (Janumet / Janumet XR)',
+    tradeNameEn: 'Janumet 50/500, 50/850, 50/1000mg / Janumet XR',
+    scientificName: 'سيتاجليبتين + ميتفورمين (Sitagliptin + Metformin)',
+    category: 'diabetes',
+    categoryAr: 'المركب الأكثر وصفاً للسكر من النوع الثاني',
+    categoryIcon: '🩸',
+    defaultTiming: 'مع الوجبات الرئيسية لتقليل تهيج المعدة',
+    dosageForm: 'أقراص مغلفة / أقراص XR ممتدة',
+    commonDoses: ['50/850 مجم', '50/1000 مجم', 'Janumet XR 50/1000 once or twice'],
+    clinicalNotes: 'فعالية مزدوجة في ضبط إفراز الإنسولين الكبدي والبنكرياسي بأعلى مستويات الأمان.',
+    searchTokens: ['جانوميت', 'janumet', 'janumet xr', 'sitagliptin metformin', 'سكر مركب']
+  },
+  {
+    id: 'galvus_50',
+    tradeName: 'جالفاس 50 مجم (Galvus)',
+    tradeNameEn: 'Galvus 50mg',
+    scientificName: 'فيلداجليبتين (Vildagliptin)',
+    category: 'diabetes',
+    categoryAr: 'منظم إفراز الأنسولين وحامي خلايا بيتا البنكرياسية',
+    categoryIcon: '🩸',
+    defaultTiming: 'قرص صباحاً ومساءً (50 مجم مرتين يومياً)',
+    dosageForm: 'أقراص',
+    commonDoses: ['50 مجم مرتين يومياً'],
+    clinicalNotes: 'يحفز إفراز الأنسولين ويكبح الجلوكاجون عند الحاجة فقط، آمن ولا يسبب زيادة الوزن.',
+    searchTokens: ['جالفاس', 'galvus', 'vildagliptin', 'فيلداجليبتين']
+  },
+  {
+    id: 'galvus_met_50_1000',
+    tradeName: 'جالفاس مت (Galvus Met)',
+    tradeNameEn: 'Galvus Met 50/500, 50/850, 50/1000mg',
+    scientificName: 'فيلداجليبتين + ميتفورمين (Vildagliptin + Metformin)',
+    category: 'diabetes',
+    categoryAr: 'مركب ثنائي شهير ومكثف لضبط سكر الدم',
+    categoryIcon: '🩸',
+    defaultTiming: 'مرتين يومياً مع وجبتي الإفطار والعشاء',
+    dosageForm: 'أقراص مغلفة',
+    commonDoses: ['50/500 مجم', '50/850 مجم', '50/1000 مجم'],
+    clinicalNotes: 'ممتاز لضبط السكر الصائم وبعد الأكل دون نوبات هبوط شديدة.',
+    searchTokens: ['جالفاس مت', 'galvus met', 'vildagliptin metformin']
+  },
+  {
+    id: 'trajenta_5',
+    tradeName: 'تراجينتا 5 مجم (Trajenta)',
+    tradeNameEn: 'Trajenta 5mg',
+    scientificName: 'ليناجليبتين (Linagliptin)',
+    category: 'diabetes',
+    categoryAr: 'علاج السكر الآمن بنسبة 100% على الكلى والكبد دون تعديل جرعة',
+    categoryIcon: '🩸',
+    defaultTiming: 'قرص واحد يومياً في أي وقت دون ارتباط بالطعام',
+    dosageForm: 'أقراص مغلفة',
+    commonDoses: ['5 مجم مرة يومياً', 'Jentadueto (with metformin)'],
+    clinicalNotes: 'الدواء الوحيد من عائلته الذي يفرز عن طريق القنوات المرارية والبراز ولا يمر بالكلى، لذا يعتبر الخيار الذهبي لمرضى القصور الكلوي واعتلال وظائف الكلى.',
+    searchTokens: ['تراجينتا', 'trajenta', 'linagliptin', 'ليناجليبتين', 'جينتادويتو', 'امان الكلى', 'غسيل كلى']
+  },
+
+  // ==========================================
+  // Sulfonylureas (محفزات إفراز الأنسولين التقليدية)
+  // ==========================================
+  {
+    id: 'amaryl_1_2_3_4',
+    tradeName: 'أماريل (Amaryl)',
+    tradeNameEn: 'Amaryl 1mg, 2mg, 3mg, 4mg / Amaryl Plus / Amaryl M',
+    scientificName: 'جليميبيريد (Glimepiride)',
+    category: 'diabetes',
+    categoryAr: 'محفز إفراز الأنسولين البنكرياسي الفعال',
+    categoryIcon: '🩸',
+    defaultTiming: 'قبل الإفطار مباشرة (أو مع أول لقمة من أول وجبة رئيسية)',
+    dosageForm: 'أقراص',
+    commonDoses: ['1 مجم', '2 مجم', '3 مجم', '4 مجم', 'Amaryl M (with metformin)'],
+    clinicalNotes: 'هام جداً: لا يجوز تناوله وتخطي الوجبة لتفادي هبوط السكر الحاد (Hypoglycemia). يجب توفير مصدر سكر سريع كالعصير أو التمر عند الشعور برجفة أو تعرق.',
+    searchTokens: ['اماريل', 'أماريل', 'amaryl', 'glimepiride', 'جليميبيريد', 'هبوط سكر', 'اماريل بلس', 'amaryl m']
+  },
+  {
+    id: 'diamicron_mr_30_60',
+    tradeName: 'دياميكرون إم آر (Diamicron MR)',
+    tradeNameEn: 'Diamicron MR 30mg, 60mg',
+    scientificName: 'جليكلازيد ممتد الإفراز (Gliclazide Modified Release)',
+    category: 'diabetes',
+    categoryAr: 'محفز أنسولين آمن على القلب والأوعية الدموية',
+    categoryIcon: '🩸',
+    defaultTiming: 'صباحاً مع وجبة الإفطار مباشرة',
+    dosageForm: 'أقراص ممتدة الإفراز',
+    commonDoses: ['30 مجم MR', '60 مجم MR'],
+    clinicalNotes: 'يحاكي النبض الفسيولوجي الطبيعي لإفراز الأنسولين، أقل إحداثاً لنوبات الهبوط مقارنة بباقي مركبات السلفونيل يوريا القديمة.',
+    searchTokens: ['دياميكرون', 'diamicron', 'diamicron mr', 'gliclazide', 'جليكلازيد']
+  },
+
+  // ==========================================
+  // GLP-1 Receptor Agonists & Dual Incretins (أدوية التخسيس والسكر الحديثة)
+  // ==========================================
+  {
+    id: 'rybelsus_3_7_14',
+    tradeName: 'ريبلسس أقراص (Rybelsus)',
+    tradeNameEn: 'Rybelsus 3mg, 7mg, 14mg (Oral Semaglutide)',
+    scientificName: 'سيماجلوتايد الفموي (Oral Semaglutide)',
+    category: 'diabetes',
+    categoryAr: 'أقراص الجيل الحديث لإنقاص الوزن وسكر الدم',
+    categoryIcon: '🩸',
+    defaultTiming: 'على الريق فور الاستيقاظ مع نصف كوب ماء فقط (أقل من 120 مل) والانتظار 30 دقيقة كاملة قبل تناول أي طعام أو شراب أو أدوية أخرى',
+    dosageForm: 'أقراص صلبة مغلفة بتقنية امتصاص متطورة (SNAC)',
+    commonDoses: ['3 مجم (جرعة بدئية شهر)', '7 مجم (جرعة علاجية)', '14 مجم (جرعة قصوى)'],
+    clinicalNotes: 'بروتوكول تناول صارم: أي رشفة قهوة أو عصير أو ماء زائد أو طعام خلال 30 دقيقة يدمر امتصاص الدواء بالكامل في المعدة. يبلع القرص كاملاً ولا يقسم.',
+    searchTokens: ['ريبلسس', 'ريبيلسس', 'rybelsus', 'semaglutide', 'سيماجلوتايد', 'حبوب اوزمبيك', 'تخسيس', 'على الريق']
+  },
+  {
+    id: 'ozempic_pen',
+    tradeName: 'أوزمبيك قلم حقن أسبوعي (Ozempic)',
+    tradeNameEn: 'Ozempic 0.25mg, 0.5mg, 1mg, 2mg Solution for Injection',
+    scientificName: 'سيماجلوتايد للحقن تحت الجلد (Semaglutide SC)',
+    category: 'diabetes',
+    categoryAr: 'حقن أسبوعية لتنظيم السكر وسد الشهية وإنقاص الوزن',
+    categoryIcon: '🩸',
+    defaultTiming: 'حقنة واحدة تحت الجلد تحت البطن أو الفخذ في نفس اليوم أسبوعياً (مع أو بدون طعام)',
+    dosageForm: 'قلم حقن جاهز مسبق التعبئة مع إبر دقيقة',
+    commonDoses: ['0.25 مجم (أول 4 أسابيع)', '0.5 مجم', '1 مجم', '2 مجم'],
+    clinicalNotes: 'يبطئ إفراغ المعدة ويرسل إشارات شبع مركزية للمخ ويخفض التراكمي بقوة. ينصح بوجبات صغيرة غنية بالبروتين وتجنب الدهون الدسمة لتفادي الغثيان والحموضة.',
+    searchTokens: ['اوزمبيك', 'أوزمبيك', 'ozempic', 'semaglutide', 'حقن اسبوعية', 'تخسيس', 'سد شهية']
+  },
+  {
+    id: 'mounjaro_pen',
+    tradeName: 'مونجارو قلم حقن أسبوعي (Mounjaro)',
+    tradeNameEn: 'Mounjaro 2.5, 5, 7.5, 10, 12.5, 15mg KwikPen',
+    scientificName: 'تيرزيباتيد (Tirzepatide - Dual GIP & GLP-1 Receptor Agonist)',
+    category: 'diabetes',
+    categoryAr: 'أقوى علاج مزدوج لإنقاص الوزن والسيطرة على السكري',
+    categoryIcon: '🩸',
+    defaultTiming: 'حقنة أسبوعية في موعد ثابت تحت الجلد',
+    dosageForm: 'أقلام حقن ذاتية معقمة',
+    commonDoses: ['2.5 مجم', '5 مجم', '7.5 مجم', '10 مجم', '12.5 مجم', '15 مجم'],
+    clinicalNotes: 'طفرة علاجية تحفز هرموني GIP و GLP-1 معاً لتحقيق فقدان وزن قياسي يصل إلى 20-25% من إجمالي وزن الجسم مع خفض سحري للسكر التراكمي ومقاومة الأنسولين.',
+    searchTokens: ['مونجارو', 'mounjaro', 'tirzepatide', 'تيرزيباتيد', 'حقن مونجارو', 'تخسيس قياسي']
+  },
+  {
+    id: 'victoza_pen',
+    tradeName: 'فيكتوزا قلم حقن يومي (Victoza)',
+    tradeNameEn: 'Victoza 6mg/ml (Liraglutide)',
+    scientificName: 'ليراجلوتايد للحقن اليومي (Liraglutide)',
+    category: 'diabetes',
+    categoryAr: 'منبه مستقبلات GLP-1 اليومي لحماية القلب والسكري',
+    categoryIcon: '🩸',
+    defaultTiming: 'حقنة تحت الجلد يومياً في أي وقت ثابت',
+    dosageForm: 'قلم حقن متعدد الجرعات',
+    commonDoses: ['0.6 مجم', '1.2 مجم', '1.8 مجم يومياً'],
+    clinicalNotes: 'يحمي من السكتات القلبية والدماغية ويساعد على ضبط الشبع اليومي.',
+    searchTokens: ['فيكتوزا', 'victoza', 'liraglutide', 'ليراجلوتايد']
+  },
+  {
+    id: 'trulicity_pen',
+    tradeName: 'تروليسيتي قلم أسبوعي (Trulicity)',
+    tradeNameEn: 'Trulicity 0.75mg, 1.5mg, 3mg, 4.5mg',
+    scientificName: 'دولاغلوتايد (Dulaglutide)',
+    category: 'diabetes',
+    categoryAr: 'حقنة أسبوعية سهلة الاستخدام بضغطة زر واحدة',
+    categoryIcon: '🩸',
+    defaultTiming: 'مرة أسبوعياً في أي وقت',
+    dosageForm: 'قلم ذاتي الحقن بزر تلقائي مخفي الإبرة',
+    commonDoses: ['0.75 مجم', '1.5 مجم', '3 مجم'],
+    clinicalNotes: 'قلم سهل للغاية لكبار السن لا يتطلب تركيب إبرة يدوياً.',
+    searchTokens: ['تروليسيتي', 'trulicity', 'dulaglutide', 'دولاغلوتايد']
+  },
+
+  // ==========================================
+  // Insulins in Egyptian Market (أنواع الإنسولين بالسوق المصري)
+  // ==========================================
+  {
+    id: 'lantus_solostar',
+    tradeName: 'لانتوس سولوستار (Lantus SoloStar)',
+    tradeNameEn: 'Lantus SoloStar 100 U/ml (Insulin Glargine)',
+    scientificName: 'إنسولين جلارجين قاعدي ممتد المفعول (Insulin Glargine)',
+    category: 'diabetes',
+    categoryAr: 'إنسولين قاعدي طويل المفعول 24 ساعة بدون ذروة حادة',
+    categoryIcon: '🩸',
+    defaultTiming: 'حقنة يومياً تحت الجلد في نفس التوقيت بدقة (مساءً قبل النوم أو صباحاً)',
+    dosageForm: 'أقلام معبأة 300 وحدة / 3 مل SoloStar',
+    commonDoses: ['حسب الخطة والوزن وسكر الصائم'],
+    clinicalNotes: 'يغطي الاحتياج الأساسي للجسم على مدار 24 ساعة بسلاسة تامة ويقلل نوبات هبوط السكر الليلي. يحفظ في الثلاجة قبل الفتح، وفي درجة حرارة الغرفة حتى 28 يوماً بعد الفتح.',
+    searchTokens: ['لانتوس', 'lantus', 'glargine', 'جلارجين', 'انسولين قاعدي', 'سولوستار']
+  },
+  {
+    id: 'toujeo_solostar',
+    tradeName: 'توجيو سولوستار عالي التركيز (Toujeo SoloStar)',
+    tradeNameEn: 'Toujeo SoloStar 300 U/ml (Insulin Glargine U-300)',
+    scientificName: 'إنسولين جلارجين عالي الكثافة 300 وحدة/مل',
+    category: 'diabetes',
+    categoryAr: 'إنسولين قاعدي فائق الثبات يمتد مفعوله حتى 36 ساعة',
+    categoryIcon: '🩸',
+    defaultTiming: 'مرة واحدة يومياً في موعد ثابت مع مرونة تصل لـ 3 ساعات',
+    dosageForm: 'قلم حقن عالي التركيز (حجم حقن أقل بمقدار الثلث)',
+    commonDoses: ['جرعات مكافئة أو أعلى قليلاً من اللانتوس العادي'],
+    clinicalNotes: 'إفراز بطيء وثابت للغاية يمنح أعلى درجات الأمان ضد هبوط السكر الليلي ومرونة في مواعيد الحقن.',
+    searchTokens: ['توجيو', 'toujeo', 'glargine u300', 'انسولين مركز']
+  },
+  {
+    id: 'levemir_flexpen',
+    tradeName: 'ليفيمير فلكسبن (Levemir FlexPen)',
+    tradeNameEn: 'Levemir FlexPen 100 U/ml (Insulin Detemir)',
+    scientificName: 'إنسولين ديتيمير (Insulin Detemir)',
+    category: 'diabetes',
+    categoryAr: 'إنسولين قاعدي آمن معتمد أثناء فترات الحمل',
+    categoryIcon: '🩸',
+    defaultTiming: 'مرة إلى مرتين يومياً كل 12 أو 24 ساعة',
+    dosageForm: 'أقلام FlexPen معبأة مسبقاً',
+    commonDoses: ['حسب جدول الجرعات الموصوف'],
+    clinicalNotes: 'يرتبط بألبومين الدم لمنح مفعول متوازن، معتمد بأمان عالي لسكر الحمل.',
+    searchTokens: ['ليفيمير', 'levemir', 'detemir', 'ديتيمير', 'سكر الحمل']
+  },
+  {
+    id: 'novorapid_flexpen',
+    tradeName: 'نوفورابيد فلكسبن (NovoRapid FlexPen)',
+    tradeNameEn: 'NovoRapid FlexPen 100 U/ml (Insulin Aspart)',
+    scientificName: 'إنسولين أسبارت سريع المفعول جداً (Insulin Aspart)',
+    category: 'diabetes',
+    categoryAr: 'إنسولين الوجبات السريع للتحكم في سكر ما بعد الأكل',
+    categoryIcon: '🩸',
+    defaultTiming: 'قبل الوجبة مباشرة بـ 5-10 دقائق (أو فور البدء في تناول الطعام)',
+    dosageForm: 'أقلام FlexPen جاهزة',
+    commonDoses: ['تحدد حسب معامل الكاربوهيدرات (ICR) وجرامات النشويات في الوجبة'],
+    clinicalNotes: 'يبدأ عمله خلال 10-15 دقيقة ويصل للذروة في ساعة وينتهي خلال 3-4 ساعات. ممنوع الحقن دون تناول الطعام لتجنب الهبوط السريع.',
+    searchTokens: ['نوفورابيد', 'novorapid', 'aspart', 'اسبارت', 'انسولين سريع', 'انسولين وجبات', 'حساب كارب']
+  },
+  {
+    id: 'apidra_humalog',
+    tradeName: 'أبيدرا / هيومالوج (Apidra / Humalog)',
+    tradeNameEn: 'Apidra SoloStar / Humalog KwikPen 100 U/ml',
+    scientificName: 'إنسولين جلوليزين / إنسولين ليسبرو سريع المفعول',
+    category: 'diabetes',
+    categoryAr: 'إنسولين وجبات فوري المفعول عالي الدقة',
+    categoryIcon: '🩸',
+    defaultTiming: 'قبل الأكل مباشرة أو حتى بعد الوجبة بـ 15 دقيقة للأطفال',
+    dosageForm: 'أقلام SoloStar أو KwikPen',
+    commonDoses: ['حسب حساب الكاربوهيدرات في الوجبة'],
+    clinicalNotes: 'سرعة امتصاص فائقة لضبط ارتفاع السكر السريع الناتج عن النشويات البسيطة.',
+    searchTokens: ['ابيدرا', 'أبيدرا', 'apidra', 'humalog', 'هيومالوج', 'lispro', 'glulisine']
+  },
+  {
+    id: 'mixtard_30_hm',
+    tradeName: 'ميكستارد 30 (Mixtard 30 HM / NovoMix 30)',
+    tradeNameEn: 'Mixtard 30 HM Penfill / Vial / NovoMix 30 FlexPen',
+    scientificName: 'إنسولين بشري مخلوط 30% سريع + 70% متوسط المفعول',
+    category: 'diabetes',
+    categoryAr: 'الإنسولين المخلوط المزدوج الأكثر انتشاراً في مصر',
+    categoryIcon: '🩸',
+    defaultTiming: 'قبل الإفطار وقبل العشاء بـ 20-30 دقيقة بدقة (يلزم رج القلم برفق 10 مرات قبل الحقن)',
+    dosageForm: 'أقلام NovoMix أو خراطيش Penfill أو زجاجات فيال للحبيبات المعلقة',
+    commonDoses: ['جرعتين يومياً قبل الإفطار والعشاء'],
+    clinicalNotes: 'يجب رج القلم برفق أفقياً لخلط الجزيئات البيضاء بالتساوي قبل كل حقنة. يجب الالتزام بتناول الوجبة بعد 30 دقيقة بالضبط مع سناك خفيف بين الوجبات.',
+    searchTokens: ['ميكستارد', 'mixtard', 'novomix', 'نوفوميكس', 'انسولين مخلوط', 'ميكستارد 30', 'رج القلم']
+  },
+  {
+    id: 'tresiba_flextouch',
+    tradeName: 'تريسيبا فليكستاتش (Tresiba FlexTouch 100 / 200 U/ml)',
+    tradeNameEn: 'Tresiba FlexTouch (Insulin Degludec - Novo Nordisk)',
+    scientificName: 'إنسولين ديجلوديك فائق الامتداد (Ultra-long Acting Insulin)',
+    category: 'diabetes',
+    categoryAr: 'أحدث إنسولين قاعدي يمتد مفعوله لأكثر من 42 ساعة بدون أي هبوط ليلي',
+    categoryIcon: '🩸',
+    defaultTiming: 'مرة واحدة يومياً في أي وقت ثابت (مع مرونة استثنائية في توقيت الحقن إذا تغير جدول المريض)',
+    dosageForm: 'أقلام FlexTouch معبأة مسبقاً',
+    commonDoses: ['10-40 وحدة يومياً حسب وصف الطبيب المعالج'],
+    clinicalNotes: 'يشكل سلاسل عديدة من الجزيئات تحت الجلد تذوب ببطء شديد وبشكل مسطح تماماً (Flat Profile)، مما يقضي تماماً على خطر نوبات هبوط السكر أثناء النوم (Nocturnal Hypoglycemia).',
+    searchTokens: ['تريسيبا', 'tresiba', 'degludec', 'ديجلوديك', 'انسولين 42 ساعة', 'انسولين قاعدي حديث']
+  },
+  {
+    id: 'fiasp_flextouch',
+    tradeName: 'فياسب فليكستاتش (Fiasp FlexTouch)',
+    tradeNameEn: 'Fiasp FlexTouch (Faster-acting Insulin Aspart + Vitamin B3 / L-Arginine)',
+    scientificName: 'إنسولين أسبارت فائق السرعة مع فيتامين B3 لتحفيز الامتصاص الفوري',
+    category: 'diabetes',
+    categoryAr: 'إنسولين الوجبات فائق السرعة يبدأ عمله خلال دقيقتين فقط من الحقن',
+    categoryIcon: '🩸',
+    defaultTiming: 'مع أول لقمة من الطعام أو حتى بعد الوجبة بـ 20 دقيقة',
+    dosageForm: 'أقلام FlexTouch',
+    commonDoses: ['حسب حساب الكاربوهيدرات بدقة'],
+    clinicalNotes: 'إضافة فيتامين B3 تجعله يدخل الدورة الدموية أسرع بمرتين من النوفورابيد العادي، مما يحاكي بدقة إفراز البنكرياس الطبيعي مع الأكل.',
+    searchTokens: ['فياسب', 'fiasp', 'اسبارت فائق السرعة', 'انسولين دقيقتين', 'انسولين بعد الاكل']
+  },
+  {
+    id: 'xultophy_soliqua_combo',
+    tradeName: 'زولتوفي / سوليكوا (Xultophy / Soliqua)',
+    tradeNameEn: 'Xultophy (Degludec + Liraglutide) / Soliqua (Glargine + Lixisenatide)',
+    scientificName: 'تركيبة هجينة تجمع بين الإنسولين القاعدي ومحفز مستقبلات GLP-1 في قلم واحد',
+    category: 'diabetes',
+    categoryAr: 'القلم الثنائي المتطور لضبط السكر التراكمي وتخفيض الوزن دون هبوط حاد',
+    categoryIcon: '🩸',
+    defaultTiming: 'حقنة واحدة يومياً تحت الجلد في نفس الموعد مع أو بدون وجبة',
+    dosageForm: 'أقلام جرعات متدرجة',
+    commonDoses: ['تبدأ من 10 خطوات جرعة وتعدل تدريجياً'],
+    clinicalNotes: 'يجمع كفاءة الإنسولين في ضبط السكر الصائم مع ميزة GLP-1 في كبح الشهية وإنقاص الوزن وخفض سكر ما بعد الوجبات، مما يمنع زيادة الوزن المعتادة مع الإنسولين التقليدي.',
+    searchTokens: ['زولتوفي', 'xultophy', 'سوليكوا', 'soliqua', 'انسولين مع جي ال بي', 'قلم ثنائي']
+  },
+  {
+    id: 'actos_glustin_pioglitazone',
+    tradeName: 'أكتوس / جلوستين 15 / 30 مجم (Actos / Glustin)',
+    tradeNameEn: 'Actos 15mg, 30mg (Pioglitazone HCl - Takeda)',
+    scientificName: 'بيوجليتازون عالي الفعالية (Pioglitazone - TZD)',
+    category: 'diabetes',
+    categoryAr: 'محسن حساسية الأنسولين المباشر وعلاج الكبد الدهني وتكيس المبايض',
+    categoryIcon: '🩸',
+    defaultTiming: 'قرص واحد يومياً صباحاً أو مساءً مع أو بدون طعام',
+    dosageForm: 'أقراص',
+    commonDoses: ['15 مجم', '30 مجم يومياً'],
+    clinicalNotes: 'ينشط مستقبلات PPAR-gamma في الخلايا الدهنية والعضلية لزيادة استجابتها للأنسولين بنسبة كبيرة. ممتاز لعلاج الكبد الدهني ومقاومة الأنسولين المتقدمة وتكيس المبايض. تنبيه: قد يسبب احتباس سوائل بسيط.',
+    searchTokens: ['اكتوس', 'أكتوس', 'actos', 'glustin', 'جلوستين', 'pioglitazone', 'بيوجليتازون', 'مقاومة انسولين', 'كبد دهني']
+  },
+  {
+    id: 'glyxambi_qtern_sglt_dpp4',
+    tradeName: 'جليكسامبي / كيوترن (Glyxambi / Qtern)',
+    tradeNameEn: 'Glyxambi (Empagliflozin 10/25mg + Linagliptin 5mg - Boehringer Ingelheim)',
+    scientificName: 'إمباجليفلوزين + ليناجليبتين (SGLT-2i + DPP-4i)',
+    category: 'diabetes',
+    categoryAr: 'الحبة الثنائية غير الإنسولينية الشاملة لطرد السكر وحماية القلب والبنكرياس',
+    categoryIcon: '🩸',
+    defaultTiming: 'قرص واحد صباحاً مع أو بدون طعام مع شرب ماء وفير طوال اليوم',
+    dosageForm: 'أقراص مغلفة',
+    commonDoses: ['10/5 مجم', '25/5 مجم يومياً'],
+    clinicalNotes: 'تجمع طرد السكر الزائد في البول وخفض الضغط وحماية عضلة القلب بفضل الإمباجليفلوزين مع تحفيز إفراز الإنسولين الذكي للبنكرياس بفضل الليناجليبتين دون أي هبوط سكر.',
+    searchTokens: ['جليكسامبي', 'glyxambi', 'كيوترن', 'qtern', 'جارديانس مع تراجينتا', 'حبة ثنائية سكر']
+  }
+];

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Pill,
   Plus,
@@ -10,14 +10,17 @@ import {
   Eye,
   EyeOff,
   Clock,
-  Sparkles,
+  Circle,
   Info,
   TrendingDown,
   TrendingUp,
   Scale,
   ShieldCheck,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Search,
+  Sparkles,
+  BookOpen
 } from 'lucide-react';
 import {
   PlanConfig,
@@ -27,6 +30,7 @@ import {
   WithFoodOption,
   AppetiteEffect,
   WeightEffect,
+  SupplementItem,
 } from '../types';
 import {
   MEDICATION_SLOT_OPTIONS,
@@ -34,6 +38,12 @@ import {
   APPETITE_EFFECT_LABELS,
   WEIGHT_EFFECT_LABELS,
 } from '../utils/medications';
+import {
+  EgyptianMedication,
+  searchEgyptianMedications,
+  EGYPTIAN_MEDICATIONS_DATABASE,
+} from '../utils/egyptianMedications';
+import { MedicationCatalogModal } from './MedicationCatalogModal';
 
 interface MedicationsManagerProps {
   draft: PlanConfig;
@@ -52,6 +62,10 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
   };
 
   const [editingMedId, setEditingMedId] = useState<string | null>(null);
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const nameInputContainerRef = useRef<HTMLDivElement>(null);
+
   const [formState, setFormState] = useState<Partial<MedicationItem>>({
     name: '',
     dose: '',
@@ -67,6 +81,22 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
 
   const [isAddingNew, setIsAddingNew] = useState(false);
 
+  // Suggestions for autocomplete when typing name in form
+  const suggestions = useMemo(() => {
+    if (!formState.name || formState.name.trim().length < 2) return [];
+    return searchEgyptianMedications(formState.name).slice(0, 6);
+  }, [formState.name]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (nameInputContainerRef.current && !nameInputContainerRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleToggleShowToClient = () => {
     const nextVal = !currentPlan.showToClient;
     const updated: MedicationPlanConfig = {
@@ -79,7 +109,72 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
       ...draft,
       medicationPlan: updated,
     });
-    onNotify(nextVal ? 'أصبحت الأدوية ظاهرة للعميل في تبويب اليوم 👁️' : 'تم إخفاء بطاقة الأدوية عن العميل 🔒');
+    onNotify(nextVal ? 'أصبحت الأدوية ظاهرة للعميل في تبويب اليوم' : 'تم إخفاء بطاقة الأدوية عن العميل');
+  };
+
+  const applyMedicationDetails = (med: EgyptianMedication) => {
+    let withFood: WithFoodOption = 'optional';
+    if (med.category === 'thyroid' || med.tradeName.toLowerCase().includes('rybelsus') || med.tradeName.includes('ريبلسس') || med.tradeName.includes('إلتروكسين')) {
+      withFood = 'empty_stomach';
+    } else if (
+      med.category === 'weight_loss' ||
+      med.category === 'diabetes' ||
+      med.tradeName.includes('أورليستات') ||
+      med.tradeName.includes('جلوكوفاج') ||
+      med.tradeName.includes('سيدوفاج')
+    ) {
+      withFood = 'required';
+    }
+
+    let appetiteEffect: AppetiteEffect = 'none';
+    if (
+      med.category === 'weight_loss' ||
+      med.tradeName.includes('أوزمبيك') ||
+      med.tradeName.includes('مونجارو') ||
+      med.tradeName.includes('ساكسندا') ||
+      med.tradeName.includes('ويجوفي') ||
+      med.tradeName.includes('كروماكس')
+    ) {
+      appetiteEffect = 'decrease';
+    }
+
+    let weightEffect: WeightEffect = 'none';
+    if (
+      med.category === 'weight_loss' ||
+      med.tradeName.includes('أوزمبيك') ||
+      med.tradeName.includes('مونجارو') ||
+      med.tradeName.includes('ساكسندا') ||
+      med.tradeName.includes('فورسيجا') ||
+      med.tradeName.includes('جارديانس')
+    ) {
+      weightEffect = 'loss';
+    }
+
+    // Determine default timing slot
+    let defaultSlot: MedicationSlot = 'with_breakfast';
+    let slotLabel = 'مع الإفطار';
+    if (withFood === 'empty_stomach') {
+      defaultSlot = 'before_breakfast';
+      slotLabel = 'قبل الإفطار بـ 30-60 دقيقة على الريق';
+    } else if (med.category === 'weight_loss') {
+      defaultSlot = 'with_lunch';
+      slotLabel = 'مع الغداء (الوجبة الرئيسية)';
+    }
+
+    setFormState({
+      ...formState,
+      name: med.tradeName,
+      dose: med.commonDoses && med.commonDoses[0] ? med.commonDoses[0] : 'قرص واحد',
+      timings: [{ id: 't_' + Date.now(), slot: defaultSlot, label: slotLabel }],
+      timesPerDay: 1,
+      withFood,
+      appetiteEffect,
+      weightEffect,
+      foodInteractionNote: med.clinicalNotes,
+      coachNotes: `${med.categoryAr} (${med.scientificName}) - التوقيت النموذجي: ${med.defaultTiming}`,
+      active: true,
+    });
+    setShowSuggestions(false);
   };
 
   const handleStartAdd = () => {
@@ -179,7 +274,7 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
 
     setIsAddingNew(false);
     setEditingMedId(null);
-    onNotify(editingMedId ? 'تم تعديل بيانات الدواء بنجاح 💊' : 'تمت إضافة الدواء إلى سجل العميل 💊');
+    onNotify(editingMedId ? 'تم تعديل بيانات الدواء بنجاح' : 'تمت إضافة الدواء إلى سجل العميل');
   };
 
   const handleDeleteMedication = (id: string, name: string) => {
@@ -224,40 +319,51 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
   return (
     <div className="space-y-4">
       {/* 1. Header & Client Visibility */}
-      <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 border border-blue-200 dark:border-blue-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="p-4 rounded-2xl bg-[var(--app-card-muted)] border border-blue-200 dark:border-blue-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-md shadow-blue-600/20 shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
             <Pill className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h4 className="font-black text-slate-800 dark:text-slate-100 text-sm">
-                سجل الأدوية والتفاعلات الغذائية
+                سجل الأدوية والتفاعلات الدوائية والغذائية 🇪🇬
               </h4>
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-700">
+              <span className="px-2 py-0.5 rounded-full text-[12px] font-black bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-700">
                 {activeCount} {activeCount === 1 ? 'دواء مفعّل' : activeCount === 2 ? 'دواءان مفعّلان' : 'أدوية مفعّلة'}
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              حدد توقيت الدواء بالنسبة للوجبات، ملاحظات تفاعل الطعام، وتأثيراته على الشهية والوزن.
+            <p className="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">
+              مكتبة أدوية الضغط، السكر، الغدة، التخسيس، والمكملات المتاحة بالسوق المصري مع توقيتاتها وتفاعلاتها مع الوجبات.
             </p>
           </div>
         </div>
 
-        {/* Visibility Toggle */}
-        <button
-          type="button"
-          onClick={handleToggleShowToClient}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
-            currentPlan.showToClient !== false
-              ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800'
-              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'
-          }`}
-          title="تحديد هل تظهر بطاقة الأدوية للعميل في تبويب اليوم لتسجيل الالتزام"
-        >
-          {currentPlan.showToClient !== false ? <Eye className="w-3.5 h-3.5 text-blue-600" /> : <EyeOff className="w-3.5 h-3.5 text-slate-400" />}
-          <span>{currentPlan.showToClient !== false ? 'ظاهر للعميل في اليوم' : 'مخفي عن العميل'}</span>
-        </button>
+        {/* Action buttons & Visibility Toggle */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setShowCatalogModal(true)}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-100 dark:bg-purple-950/70 hover:bg-purple-200 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>دليل الأدوية المصري</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleToggleShowToClient}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+              currentPlan.showToClient !== false
+                ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'
+            }`}
+            title="تحديد هل تظهر بطاقة الأدوية للعميل في تبويب اليوم لتسجيل الالتزام"
+          >
+            {currentPlan.showToClient !== false ? <Eye className="w-3.5 h-3.5 text-blue-600" /> : <EyeOff className="w-3.5 h-3.5 text-slate-400" />}
+            <span>{currentPlan.showToClient !== false ? 'ظاهر للعميل' : 'مخفي عن العميل'}</span>
+          </button>
+        </div>
       </div>
 
       {/* 2. Add Medication Action */}
@@ -266,14 +372,24 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
             قائمة الأدوية والعلاجات الموصوفة:
           </span>
-          <button
-            type="button"
-            onClick={handleStartAdd}
-            className="px-3.5 py-2 rounded-xl text-xs font-black bg-blue-600 hover:bg-blue-700 text-white transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>إضافة دواء جديد</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowCatalogModal(true)}
+              className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>بحث في الدليل</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleStartAdd}
+              className="px-3.5 py-2 rounded-xl text-xs font-black bg-blue-600 hover:bg-blue-700 text-white transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>إضافة دواء جديد</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -281,7 +397,7 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
       {isAddingNew && (
         <form
           onSubmit={handleSaveMedication}
-          className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-800/95 border-2 border-blue-500/40 dark:border-blue-500/30 shadow-md space-y-4 animate-in slide-in-from-top-2 duration-150"
+          className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-800/95 border-2 border-blue-500/40 dark:border-blue-500/30 space-y-4 animate-in slide-in-from-top-2 duration-150"
         >
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-3">
             <div className="flex items-center gap-2">
@@ -290,29 +406,82 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
                 {editingMedId ? 'تعديل بيانات الدواء' : 'إضافة دواء جديد للسجل'}
               </h5>
             </div>
-            <button
-              type="button"
-              onClick={handleCancelForm}
-              className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCatalogModal(true)}
+                className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 flex items-center gap-1 cursor-pointer"
+              >
+                <Search className="w-3 h-3" />
+                <span>اختر من دليل الأدوية 🇪🇬</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelForm}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Name & Dose */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
+            <div ref={nameInputContainerRef} className="relative">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                 اسم الدواء / العلاج <span className="text-rose-500">*</span>
               </label>
-              <input
-                type="text"
-                required
-                placeholder="مثال: جلوكوفاج (Glucophage) أو أوزمبيك"
-                value={formState.name || ''}
-                onChange={(e) => setFormState({ ...formState, name: e.target.value })}
-                className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 font-bold"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  placeholder="مثال: جلوكوفاج، كونكور، أورليستات، أوزمبيك..."
+                  value={formState.name || ''}
+                  onChange={(e) => {
+                    setFormState({ ...formState, name: e.target.value });
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => {
+                    if (formState.name && formState.name.trim().length >= 2) {
+                      setShowSuggestions(true);
+                    }
+                  }}
+                  className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+                />
+                <Pill className="w-3.5 h-3.5 text-blue-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+
+              {/* Autocomplete Dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute top-full right-0 left-0 mt-1 z-40 bg-white dark:bg-slate-850 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden max-h-56 overflow-y-auto">
+                  <div className="p-1.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold text-slate-500 flex justify-between">
+                    <span>اقتراحات الأدوية والمكملات في مصر</span>
+                    <span className="text-blue-600">انقر للتعبئة التلقائية</span>
+                  </div>
+                  {suggestions.map((sug) => (
+                    <button
+                      key={sug.id}
+                      type="button"
+                      onClick={() => applyMedicationDetails(sug)}
+                      className="w-full text-right p-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/40 border-b border-slate-100 dark:border-slate-800 last:border-0 transition-colors flex items-start justify-between gap-2 cursor-pointer"
+                    >
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-black text-slate-900 dark:text-white">
+                            {sug.tradeName}
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-bold">
+                            {sug.categoryIcon} {sug.categoryAr.split('(')[0]}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5" dir="ltr">
+                          {sug.scientificName}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>
@@ -338,7 +507,7 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
                 <span>توقيت الجرعات بالنسبة للوجبات:</span>
                 <span className="text-rose-500">*</span>
               </label>
-              <span className="text-[11px] font-bold text-blue-600">
+              <span className="text-[12px] font-bold text-blue-600">
                 {(formState.timings || []).length} مواعيد محددة
               </span>
             </div>
@@ -351,115 +520,123 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
                     key={slotOpt.slot}
                     type="button"
                     onClick={() => handleToggleSlot(slotOpt.slot, slotOpt.label)}
-                    className={`p-2 rounded-xl text-xs font-bold transition-all text-right flex items-center gap-2 border cursor-pointer ${
+                    className={`p-2 rounded-xl text-right text-xs transition-all flex items-center justify-between border cursor-pointer ${
                       isChecked
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                        ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-400 dark:border-blue-600 text-blue-900 dark:text-blue-100 font-bold'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300'
                     }`}
                   >
-                    <span className="text-sm">{slotOpt.icon}</span>
-                    <span className="truncate flex-1">{slotOpt.label}</span>
-                    {isChecked && <Check className="w-3.5 h-3.5 shrink-0" />}
+                    <span>{slotOpt.label}</span>
+                    <div
+                      className={`w-4 h-4 rounded-md flex items-center justify-center border transition-colors ${
+                        isChecked
+                          ? 'bg-blue-600 border-blue-600 text-white'
+                          : 'border-slate-300 dark:border-slate-600'
+                      }`}
+                    >
+                      {isChecked && <Check className="w-3 h-3" />}
+                    </div>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Relation to Food & Appetite / Weight Effects */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-            {/* With food requirement */}
+          {/* With Food Instructions */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                علاقة تناول الدواء بالطعام:
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                علاقة الدواء بالأكل
               </label>
               <select
                 value={formState.withFood || 'unspecified'}
                 onChange={(e) => setFormState({ ...formState, withFood: e.target.value as WithFoodOption })}
-                className="w-full text-xs p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full text-xs p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none"
               >
-                <option value="required">مع الأكل / الوجبة حتماً</option>
-                <option value="empty_stomach">على معدة فارغة / على الريق</option>
-                <option value="optional">مع أو بدون الأكل (اختياري)</option>
-                <option value="unspecified">غير محدد</option>
+                {Object.entries(WITH_FOOD_LABELS).map(([key, val]) => (
+                  <option key={key} value={key}>
+                    {val.label}
+                  </option>
+                ))}
               </select>
             </div>
 
-            {/* Appetite Effect */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                تأثير الدواء على الشهية:
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                التأثير على الشهية
               </label>
               <select
                 value={formState.appetiteEffect || 'unknown'}
                 onChange={(e) => setFormState({ ...formState, appetiteEffect: e.target.value as AppetiteEffect })}
-                className="w-full text-xs p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full text-xs p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none"
               >
-                <option value="decrease">📉 يقلل الشهية / يساعد على الشبع</option>
-                <option value="increase">📈 قد يزيد الشهية / يسبب جوعاً</option>
-                <option value="none">➖ لا تأثير على الشهية</option>
-                <option value="unknown">❓ غير محدد</option>
+                {Object.entries(APPETITE_EFFECT_LABELS).map(([key, val]) => (
+                  <option key={key} value={key}>
+                    {val.label}
+                  </option>
+                ))}
               </select>
             </div>
 
-            {/* Weight Effect */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                تأثير الدواء على الوزن:
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                التأثير على الوزن
               </label>
               <select
                 value={formState.weightEffect || 'unknown'}
                 onChange={(e) => setFormState({ ...formState, weightEffect: e.target.value as WeightEffect })}
-                className="w-full text-xs p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full text-xs p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none"
               >
-                <option value="loss">⚖️⬇️ قد يساهم في نزول الوزن</option>
-                <option value="gain">⚖️⬆️ قد يسبب زيادة وزن أو احتباس</option>
-                <option value="none">⚖️➖ محايد على الوزن</option>
-                <option value="unknown">❓ غير محدد</option>
+                {Object.entries(WEIGHT_EFFECT_LABELS).map(([key, val]) => (
+                  <option key={key} value={key}>
+                    {val.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
-          {/* Food Interaction Notes */}
+          {/* Food Interaction Note */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              تنويه التفاعلات الغذائية ومحاذير الطعام (Food Interaction Note):
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+              <span>ملاحظة التفاعل الغذائي (أطعمة يجب تجنبها أو الانتباه لها):</span>
             </label>
             <input
               type="text"
-              placeholder="مثال: تجنب الجريب فروت، أو تجنب تناوله مع منتجات الألبان والكالسيوم في نفس الوقت..."
+              placeholder="مثال: يمنع تناول الجريب فروت، أو يفصل ساعتين عن مشتقات الحليب والكالسيوم"
               value={formState.foodInteractionNote || ''}
               onChange={(e) => setFormState({ ...formState, foodInteractionNote: e.target.value })}
-              className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full text-xs p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none"
             />
           </div>
 
           {/* Coach Notes */}
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              ملاحظات الأخصائي للمتدرب حول هذا الدواء:
+              ملاحظات الطبيب / المدرب الخاصة بالدواء:
             </label>
-            <textarea
-              rows={2}
-              placeholder="مثال: يؤخذ لمدة 3 أشهر ثم مراجعة التحليل، أو شرب كوب ماء كبير مع القرص..."
+            <input
+              type="text"
+              placeholder="مثال: دواء ضغط يؤخذ بانتظام، يتم قياس الضغط أسبوعياً صباحاً"
               value={formState.coachNotes || ''}
               onChange={(e) => setFormState({ ...formState, coachNotes: e.target.value })}
-              className="w-full text-xs p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full text-xs p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none"
             />
           </div>
 
           {/* Form Actions */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
             <button
               type="button"
               onClick={handleCancelForm}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 cursor-pointer"
             >
               إلغاء
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl text-xs font-black bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-1.5"
+              className="px-5 py-2 rounded-xl text-xs font-black bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <Check className="w-4 h-4" />
               <span>{editingMedId ? 'حفظ التعديلات' : 'إضافة الدواء للسجل'}</span>
@@ -468,17 +645,25 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
         </form>
       )}
 
-      {/* 4. List of Medications Cards */}
+      {/* 4. List of Existing Medications */}
       {items.length === 0 && !isAddingNew ? (
-        <div className="p-8 text-center rounded-3xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 space-y-2">
-          <Pill className="w-8 h-8 text-slate-300 mx-auto" />
-          <p className="text-xs font-bold text-slate-500">لا توجد أدوية مسجلة في خطة العميل حالياً.</p>
+        <div className="text-center py-10 px-4 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 text-slate-400 space-y-3">
+          <Pill className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
+          <div>
+            <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+              لم يتم تسجيل أي أدوية أو مكملات للعميل حتى الآن.
+            </p>
+            <p className="text-[11px] text-slate-400 mt-1">
+              أضف أدوية الضغط، السكر، الغدة، التخسيس أو المكملات لتتبع مواعيدها وتفاعلاتها مع الوجبات.
+            </p>
+          </div>
           <button
             type="button"
-            onClick={handleStartAdd}
-            className="text-xs font-bold text-blue-600 hover:underline cursor-pointer"
+            onClick={() => setShowCatalogModal(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 cursor-pointer transition-colors shadow-xs"
           >
-            + إضافة دواء أو علاج جديد
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>تصفح دليل الأدوية المصري الشامل</span>
           </button>
         </div>
       ) : (
@@ -491,63 +676,72 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
             return (
               <div
                 key={med.id}
-                className={`p-4 rounded-2xl border transition-all ${
+                className={`p-3.5 rounded-2xl border transition-all ${
                   med.active !== false
-                    ? 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 shadow-2xs'
-                    : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 opacity-60'
+                    ? 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700/80 shadow-xs'
+                    : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 opacity-60'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1.5 flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h5 className="font-black text-slate-800 dark:text-slate-100 text-sm">
+                      <h5 className="font-black text-slate-900 dark:text-slate-100 text-xs sm:text-sm">
                         {med.name}
                       </h5>
-                      <span className="px-2 py-0.5 rounded-lg text-[11px] font-black bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
                         {med.dose}
                       </span>
                       {med.active === false && (
-                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                          موقوف مؤقتاً
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-500">
+                          (متوقف مؤقتاً)
                         </span>
                       )}
                     </div>
 
-                    {/* Timing chips */}
-                    <div className="flex flex-wrap gap-1 pt-0.5">
-                      {(med.timings || []).map((t, idx) => (
+                    {/* Timings */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        المواعيد:
+                      </span>
+                      {(med.timings || []).map((t) => (
                         <span
-                          key={idx}
-                          className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-1"
+                          key={t.id}
+                          className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/50"
                         >
-                          <Clock className="w-3 h-3 text-blue-500" />
-                          <span>{t.label}</span>
+                          {t.label}
                         </span>
                       ))}
                     </div>
 
-                    {/* Food and Effects tags */}
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px] font-bold">
-                      {med.withFood && med.withFood !== 'unspecified' && (
-                        <span className={`px-2 py-0.5 rounded-md border ${withFoodInfo.badgeColor}`}>
-                          🍽️ {withFoodInfo.label}
+                    {/* Meta Badges */}
+                    <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
+                      {withFoodInfo && med.withFood !== 'unspecified' && (
+                        <span className={`px-2 py-0.5 rounded-md border font-medium ${withFoodInfo.badgeColor}`}>
+                          {withFoodInfo.label}
                         </span>
                       )}
-                      {med.appetiteEffect && med.appetiteEffect !== 'unknown' && med.appetiteEffect !== 'none' && (
-                        <span className={`px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 ${appetiteInfo.color}`}>
-                          {appetiteInfo.icon} {appetiteInfo.label}
+                      {appetiteInfo && med.appetiteEffect !== 'unknown' && med.appetiteEffect !== 'none' && (
+                        <span className="px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 font-medium">
+                          {appetiteInfo.label}
                         </span>
                       )}
-                      {med.weightEffect && med.weightEffect !== 'unknown' && med.weightEffect !== 'none' && (
-                        <span className={`px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 ${weightInfo.color}`}>
-                          {weightInfo.icon} {weightInfo.label}
+                      {weightInfo && med.weightEffect !== 'unknown' && med.weightEffect !== 'none' && (
+                        <span
+                          className={`px-2 py-0.5 rounded-md border font-medium ${
+                            med.weightEffect === 'loss'
+                              ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                              : 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                          }`}
+                        >
+                          {weightInfo.label}
                         </span>
                       )}
                     </div>
 
-                    {/* Food interaction note */}
+                    {/* Food Interaction Note */}
                     {med.foodInteractionNote && (
-                      <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-[11px] text-amber-900 dark:text-amber-200 flex items-start gap-1.5 mt-1 font-medium">
+                      <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-[12px] text-amber-900 dark:text-amber-200 flex items-start gap-1.5 mt-1 font-medium">
                         <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
                         <span>
                           <strong>تفاعل غذائي:</strong> {med.foodInteractionNote}
@@ -557,8 +751,8 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
 
                     {/* Coach Notes */}
                     {med.coachNotes && (
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium pt-0.5">
-                        💡 {med.coachNotes}
+                      <p className="text-[12px] text-slate-500 dark:text-slate-400 font-medium pt-0.5">
+                        {med.coachNotes}
                       </p>
                     )}
                   </div>
@@ -575,7 +769,7 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
                       }`}
                       title={med.active !== false ? 'إيقاف مؤقت' : 'إعادة تفعيل'}
                     >
-                      {med.active !== false ? 'تفعيل' : 'إيقاف'}
+                      {med.active !== false ? 'إيقاف' : 'تفعيل'}
                     </button>
                     <button
                       type="button"
@@ -600,6 +794,31 @@ export const MedicationsManager: React.FC<MedicationsManagerProps> = ({
           })}
         </div>
       )}
+
+      {/* Medication Catalog Browser Modal */}
+      <MedicationCatalogModal
+        isOpen={showCatalogModal}
+        onClose={() => setShowCatalogModal(false)}
+        onSelectMedication={(suppItem) => {
+          // Look up full EgyptianMedication details
+          const med = EGYPTIAN_MEDICATIONS_DATABASE.find((m) => m.tradeName === suppItem.name);
+          if (med) {
+            applyMedicationDetails(med);
+          } else {
+            setFormState({
+              ...formState,
+              name: suppItem.name,
+              dose: 'قرص واحد',
+              foodInteractionNote: suppItem.notes || '',
+              coachNotes: `التوقيت الموصى به: ${suppItem.time || 'مع الأكل'}`,
+            });
+          }
+          setIsAddingNew(true);
+          setShowCatalogModal(false);
+          onNotify(`تم اختيار ${suppItem.name} وتعبئة بياناته تلقائياً`);
+        }}
+        alreadySelectedNames={items.map((m) => m.name)}
+      />
     </div>
   );
 };

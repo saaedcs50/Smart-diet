@@ -1,8 +1,22 @@
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* =========================================================
+   DESIGN TOKENS - Phase 1 (DESIGN_RULES.md)
+   - One accent family (from brand.json via applyBrandTheme)
+   - Neutral greys
+   - Single border colour
+   - Single radius
+   - Shadow ONLY on true overlays (modal / toast / popover)
+   ========================================================= */
+
 @theme {
+  --font-display: 'IBM Plex Sans Arabic', system-ui, -apple-system, sans-serif;
+  --font-sans: 'IBM Plex Sans Arabic', system-ui, -apple-system, sans-serif;
+  --font-body: 'IBM Plex Sans Arabic', system-ui, -apple-system, sans-serif;
+
   --color-brand-primary-text: #3A124D;
   --color-brand-secondary-text: #6F5A7D;
   --color-brand-bg: #F8F7F9;
@@ -12,24 +26,42 @@
   --color-brand-hero: #E21B6D;
   --color-brand-hero-hover: #C91561;
   --color-brand-secondary: #5B2482;
+  --color-brand-secondary-hover: #43186A;
   --color-brand-gold: #E0922D;
   --color-brand-gold-light: #F2C66D;
   --color-brand-neon: #FF4099;
 }
 
 :root {
+  /* Surfaces */
   --app-bg: #F8F7F9;
   --app-card: #FFFFFF;
   --app-card-muted: #F1E9F8;
   --app-border: #D8C4E9;
+
+  /* Text */
   --app-text-primary: #3A124D;
   --app-text-secondary: #6F5A7D;
+
+  /* Accent (from brand - single accent family) */
   --app-hero: #E21B6D;
   --app-hero-hover: #C91561;
   --app-secondary: #5B2482;
+  --app-secondary-hover: #43186A;
+
+  /* Meaning colours (status only) */
+  --app-success: #059669;
+  --app-warning: #D97706;
+  --app-danger: #DC2626;
+
+  /* Gold (optional accent for highlights - use sparingly) */
   --app-gold: #E0922D;
   --app-gold-light: #F2C66D;
-  --app-gradient: linear-gradient(135deg, #3A124D 0%, #5B2482 50%, #E21B6D 100%);
+
+  /* Phase 1: single radius + overlay shadow only */
+  --app-radius: 12px;
+  --app-radius-lg: 16px;
+  --app-shadow-overlay: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .dark {
@@ -42,14 +74,18 @@
   --app-hero: #E21B6D;
   --app-hero-hover: #FF4099;
   --app-secondary: #9B45D3;
+  --app-secondary-hover: #B56DE0;
+  --app-success: #34D399;
+  --app-warning: #FBBF24;
+  --app-danger: #F87171;
   --app-gold: #F2C66D;
   --app-gold-light: #FFE3A8;
-  --app-gradient: linear-gradient(135deg, #220930 0%, #5B2482 50%, #E21B6D 100%);
+  --app-shadow-overlay: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 @layer base {
   html {
-    font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+    font-family: 'IBM Plex Sans Arabic', system-ui, -apple-system, sans-serif;
   }
 
   html.dark {
@@ -61,7 +97,7 @@
   }
 
   body {
-    font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+    font-family: 'IBM Plex Sans Arabic', system-ui, -apple-system, sans-serif;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
     background-color: var(--app-bg);
@@ -69,12 +105,17 @@
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
+  h1, h2, h3, h4, h5, h6, .font-display {
+    font-family: 'IBM Plex Sans Arabic', system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.01em;
+  }
+
   input, textarea, pre {
     user-select: text;
   }
 }
 
-/* Brand Utility Classes */
+/* ---------- Brand surface utilities ---------- */
 .bg-brand-page {
   background-color: var(--app-bg);
 }
@@ -107,11 +148,86 @@
   background-color: var(--app-hero);
 }
 
-.bg-brand-hero:hover {
+.bg-brand-hero:hover,
+.hover-bg-brand-hero:hover {
   background-color: var(--app-hero-hover);
 }
 
-.brand-gradient {
-  background: var(--app-gradient);
+.bg-brand-secondary {
+  background-color: var(--app-secondary);
 }
 
+.bg-brand-secondary:hover,
+.hover-bg-brand-secondary:hover {
+  background-color: var(--app-secondary-hover);
+}
+
+.hover-bg-brand-muted:hover {
+  background-color: var(--app-card-muted);
+}
+
+
+/* ---------- Phase 1 card / surface (NO shadow) ---------- */
+.app-card {
+  background-color: var(--app-card);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+}
+
+.app-card-muted {
+  background-color: var(--app-card-muted);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+}
+
+/* Overlay only - modals, toasts, popovers */
+.app-overlay-shadow {
+  box-shadow: var(--app-shadow-overlay);
+}
+
+/* ---------- Phase 4: type scale & spacing (DESIGN_RULES §6) ---------- */
+:root {
+  --app-text-xs: 12px;   /* minimum readable */
+  --app-text-sm: 14px;
+  --app-text-md: 16px;
+  --app-text-lg: 20px;
+  --app-text-xl: 24px;
+  --app-btn-h: 44px;
+  --app-space: 4px;
+}
+
+@layer base {
+  body {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+}
+
+/* Compact label - never below 12px */
+.text-app-xs {
+  font-size: var(--app-text-xs);
+  line-height: 1.35;
+}
+.text-app-sm {
+  font-size: var(--app-text-sm);
+  line-height: 1.4;
+}
+.text-app-md {
+  font-size: var(--app-text-md);
+  line-height: 1.5;
+}
+
+/* Primary touch button height */
+.btn-touch {
+  min-height: var(--app-btn-h);
+  padding-inline: 16px;
+}
+
+/* Phase 5: respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

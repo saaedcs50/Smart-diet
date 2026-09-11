@@ -27,7 +27,7 @@ export interface MedicationItem {
   id: string;
   name: string;                 // اسم الدواء
   dose: string;                 // مثال: 500 مجم
-  timesPerDay: number;          // 1–4
+  timesPerDay: number;          // 1-4
   timings: MedicationTiming[];
   withFood?: WithFoodOption;
   appetiteEffect?: AppetiteEffect;
@@ -63,8 +63,8 @@ export interface CycleTrackingConfig {
   enabled: boolean;                 // تفعيل للعميلة
   showPhaseToClient: boolean;
   regularity: 'regular' | 'irregular' | 'unknown';
-  typicalCycleLength: number;       // 21–45 (default 28)
-  typicalPeriodLength: number;      // 2–10 (default 5)
+  typicalCycleLength: number;       // 21-45 (default 28)
+  typicalPeriodLength: number;      // 2-10 (default 5)
   lastPeriodStart?: string;         // YYYY-MM-DD
   clinicalFlags: ClinicalCycleFlag[];
   coachNotes?: string;
@@ -75,7 +75,7 @@ export interface CycleTrackingConfig {
 
 export interface CycleDayLog {
   periodStartedToday?: boolean;
-  energy?: number | null;           // 1–5
+  energy?: number | null;           // 1-5
   symptoms: string[];               // symptom ids e.g. "cramps", "bloating", etc.
   spotting?: boolean;
   note?: string;
@@ -120,6 +120,9 @@ export interface SupplementItem {
   id: string;
   name: string;
   time?: string;
+  notes?: string;
+  category?: string;
+  scientificName?: string;
 }
 
 export interface SymptomItem {
@@ -173,6 +176,59 @@ export interface MedicalConditionsConfig {
   lastUpdatedBy?: 'coach';
 }
 
+// ============================================================================
+// نظام الصيام المتقدم (إسلامي / مسيحي / متقطع)
+// ============================================================================
+export type FastingType = 'none' | 'islamic' | 'christian' | 'intermittent';
+
+export type IslamicFastingPattern = 
+  | 'single_day'    // يوم منفصل / تطوع
+  | 'mon_thu'       // الإثنين والخميس أسبوعياً
+  | 'white_days'    // الأيام البيض (13 و 14 و 15 هجرياً)
+  | 'ramadan'       // شهر رمضان المبارك
+  | 'custom_dates'; // تواريخ محددة
+
+export interface IslamicFastingConfig {
+  pattern: IslamicFastingPattern;
+  fajrTime?: string;         // e.g. "04:30" (أذان الفجر / الإمساك)
+  maghribTime?: string;      // e.g. "18:15" (أذان المغرب / الإفطار)
+  autoRemapMeals?: boolean;  // تحويل مسميات الوجبات لسحور وإفطار تلقائياً
+  rehydrationPlan?: boolean; // جدول شرب الماء وتوزيع الحصص الذكي
+  suhurTips?: boolean;       // إرشادات السحور لتقليل العطش والجوع
+}
+
+export type ChristianFastType = 
+  | 'with_fish'      // صيام درجة ثانية (مسموح بالأسماك: صوم الميلاد، الرسل، العذراء)
+  | 'strict_vegan'   // صيام درجة أولى (نباتي صرف بدون أسماك: الصوم الكبير، يونان، أسبوع الآلام، البرامون)
+  | 'custom';
+
+export interface ChristianFastingConfig {
+  fastType: ChristianFastType;
+  fastName?: string;              // e.g. "الصوم الكبير", "صوم الميلاد"
+  abstinenceHoursEnabled: boolean;// صيام انقطاعي صباحي
+  abstinenceEndTime?: string;     // e.g. "12:00" أو "15:00"
+  allowFish?: boolean;            // هل مسموح بالأسماك في هذا الصوم
+  plantProteinCombiner?: boolean; // إرشاد دمج مصادر البروتين النباتي
+  supplementReminders?: string[]; // e.g. ["b12", "iron", "zinc", "calcium"]
+}
+
+export interface IntermittentFastingConfig {
+  targetHours: number;            // 16, 18, 20, 14, 12
+  eatingWindowStart?: string;     // e.g. "12:00"
+  eatingWindowEnd?: string;       // e.g. "20:00"
+}
+
+export interface FastingPlanConfig {
+  enabled: boolean;
+  type: FastingType;
+  islamic?: IslamicFastingConfig;
+  christian?: ChristianFastingConfig;
+  intermittent?: IntermittentFastingConfig;
+  notes?: string;
+  lastUpdatedAt?: string;
+  lastUpdatedBy?: 'coach' | 'client';
+}
+
 export interface PlanConfig {
   clientName: string;
   dailyWaterGoalMl: number;
@@ -196,6 +252,8 @@ export interface PlanConfig {
   cycleTracking?: CycleTrackingConfig;
   // Lab Tests Tracking
   labTracking?: LabTrackingConfig;
+  // Advanced Fasting System (Islamic / Christian / Intermittent)
+  fastingPlan?: FastingPlanConfig;
   // Features & Visibility
   targetCalories?: number | null;
   targetProtein?: number | null;
@@ -263,6 +321,10 @@ export interface DayLog {
   fastingEndTime?: number | null;
   completedFastingHours?: number | null;
   isFasting?: boolean;
+  // Today fasting status override by client or schedule
+  isFastingDay?: boolean;
+  fastingTypeOverride?: FastingType;
+  christianFishOverride?: boolean;
 }
 
 export interface PhotoRecord {

@@ -1,85 +1,78 @@
 import React, { useState } from 'react';
-import { Lock, KeyRound, X } from 'lucide-react';
+import { brandCopy } from '../config/brand';
+import { BrandLogo } from './BrandLogo';
+import { BottomSheetModal } from './BottomSheetModal';
 
 interface PinModalProps {
+  /** @deprecated لم يعد يُقارن محليًا: التحقق عبر السيرفر من الأب */
   correctPin?: string;
-  onSuccess: (pin: string) => void;
+  onSuccess: (pin: string) => void | boolean | Promise<void | boolean | string>;
   onClose: () => void;
 }
 
 export const PinModal: React.FC<PinModalProps> = ({ onSuccess, onClose }) => {
   const [enteredPin, setEnteredPin] = useState('');
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (enteredPin === '32184') {
-      setError(false);
-      onSuccess(enteredPin);
-    } else {
-      setError(true);
+    if (!enteredPin.trim() || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const result = await onSuccess(enteredPin.trim());
+      if (result === false) {
+        setError(brandCopy.pinWrong);
+        setEnteredPin('');
+      } else if (typeof result === 'string' && result) {
+        setError(result);
+        setEnteredPin('');
+      }
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : brandCopy.pinWrong);
       setEnteredPin('');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-2xl animate-in zoom-in-95 duration-150">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 mb-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 flex items-center justify-center font-bold">
-              <Lock className="w-4 h-4" />
-            </div>
-            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
-              لوحة تحكم الطبيبة (د. شيماء)
-            </h3>
-          </div>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-full">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
-            أدخل الرقم السري (PIN) للدخول وتعديل الخطة الغذائية والأهداف
+    <BottomSheetModal
+      isOpen={true}
+      onClose={onClose}
+      maxWidth="max-w-sm"
+      icon={<BrandLogo size={32} rounded="rounded-xl" />}
+      title={brandCopy.coachPanelNamed}
+    >
+      <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+        <p className="text-xs text-[var(--app-text-secondary)] text-center">
+          أدخل الرقم السري (PIN) للدخول وتعديل الخطة الغذائية والأهداف
+        </p>
+        <input
+          type="password"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={8}
+          value={enteredPin}
+          onChange={(e) => setEnteredPin(e.target.value)}
+          className="w-full text-center text-lg tracking-[0.35em] font-bold min-h-[48px] p-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text-primary)] focus:outline-hidden focus:ring-2 focus:ring-[var(--app-hero)]"
+          placeholder="•••••"
+          autoFocus
+        />
+        {error && (
+          <p className="text-xs text-rose-600 dark:text-rose-400 text-center font-bold leading-relaxed">
+            {error}
           </p>
-
-          <div className="relative">
-            <input
-              type="password"
-              inputMode="numeric"
-              maxLength={8}
-              placeholder="••••"
-              autoFocus
-              value={enteredPin}
-              onChange={(e) => {
-                setError(false);
-                setEnteredPin(e.target.value);
-              }}
-              className={`w-full text-center text-xl font-bold tracking-widest py-3 px-4 rounded-2xl border bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none transition-all ${
-                error
-                  ? 'border-rose-500 ring-2 ring-rose-500/20'
-                  : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-emerald-500'
-              }`}
-            />
-          </div>
-
-          {error && (
-            <p className="text-xs font-bold text-rose-500 text-center animate-shake">
-              ⚠️ الرقم السري غير صحيح!
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={!enteredPin}
-            className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
-          >
-            <KeyRound className="w-4 h-4" />
-            دخول للوحة التحكم
-          </button>
-        </form>
-      </div>
-    </div>
+        )}
+        <button
+          type="submit"
+          disabled={submitting || !enteredPin.trim()}
+          className="w-full min-h-[44px] rounded-2xl bg-[var(--app-hero)] hover:bg-[var(--app-hero-hover)] disabled:opacity-50 text-white text-sm font-black cursor-pointer transition-all"
+        >
+          {submitting ? 'جاري التحقق...' : 'دخول'}
+        </button>
+      </form>
+    </BottomSheetModal>
   );
 };
