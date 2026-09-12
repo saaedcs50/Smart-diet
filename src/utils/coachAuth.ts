@@ -79,9 +79,11 @@ function unlockLocalOffline(): void {
   sessionStorage.setItem(unlockKey(), 'true');
 }
 
-function isNetworkOrServerFailure(res?: Response): boolean {
+function isNetworkOrServerFailure(res?: Response, data?: any): boolean {
   if (!res) return true;
-  return res.status === 404 || res.status === 408 || res.status >= 500;
+  if (res.status === 404 || res.status === 408 || res.status >= 500) return true;
+  if (res.ok && (!data || (!data.ok && !data.error))) return true;
+  return false;
 }
 
 /**
@@ -91,7 +93,7 @@ function isNetworkOrServerFailure(res?: Response): boolean {
 export async function unlockCoachSession(pin: string): Promise<CoachUnlockResult> {
   const trimmed = String(pin || '').trim();
   if (!trimmed) {
-    return { ok: false, error: 'أدخل رمز PIN.' };
+    return { ok: false, error: 'يرجى إدخال رمز PIN.' };
   }
 
   try {
@@ -101,26 +103,33 @@ export async function unlockCoachSession(pin: string): Promise<CoachUnlockResult
       body: JSON.stringify({ pin: trimmed }),
     });
 
-    let data: { ok?: boolean; token?: string; error?: string } = {};
+    let data: any = null;
     try {
       data = await res.json();
     } catch {
-      data = {};
+      data = null;
     }
 
-    if (res.ok && data.ok && data.token) {
+    if (res.ok && data && data.ok && data.token) {
       sessionStorage.setItem(tokenKey(), data.token);
       sessionStorage.setItem(unlockKey(), 'true');
       await storePinHash(trimmed);
       return { ok: true };
     }
 
-    if (!isNetworkOrServerFailure(res)) {
+    if (res.status === 403 || res.status === 429) {
       return {
         ok: false,
-        error: data.error || (res.status === 429
-          ? 'تم إيقاف المحاولات مؤقتًا. حاول لاحقًا.'
+        error: data?.error || (res.status === 429
+          ? 'تم إيقاف المحاولات مؤقتًا بسبب تكرار المحاولات الخاطئة. حاول لاحقًا.'
           : 'رمز PIN غير صحيح.'),
+      };
+    }
+
+    if (!isNetworkOrServerFailure(res, data)) {
+      return {
+        ok: false,
+        error: data?.error || 'رمز PIN غير صحيح.',
       };
     }
 
@@ -141,7 +150,7 @@ async function fallbackOfflineUnlock(pin: string): Promise<CoachUnlockResult> {
     return {
       ok: false,
       error:
-        'تعذر الاتصال بالخادم. أول دخول للوحة يحتاج إنترنت. بعد نجاح أول مرة يمكن الفتح بدون سيرفر بنفس الرمز.',
+        'تعذر الاتصال بالخادم للتحقق من الرمز. يرجى التأكد من تشغيل السيرفر أو المحاولة مرة أخرى.',
     };
   }
   return { ok: false, error: 'رمز PIN غير صحيح.' };
