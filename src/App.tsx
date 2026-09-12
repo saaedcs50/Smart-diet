@@ -101,8 +101,17 @@ export default function App() {
     setCurrentPath(path);
   };
 
-  const handleUnlockCoachSession = () => {
-    setCoachSessionUnlocked(true);
+  const handleUnlockCoachSession = async (enteredPin: string): Promise<boolean | string> => {
+    const trimmed = String(enteredPin || '').trim();
+    if (!trimmed) {
+      return 'يرجى إدخال رمز PIN للدخول.';
+    }
+    const res = await unlockCoachSession(trimmed);
+    if (res.ok === true) {
+      setCoachSessionUnlocked(true);
+      return true;
+    }
+    return res.error;
   };
 
   const handleLogoutCoachSession = () => {

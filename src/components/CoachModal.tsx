@@ -93,7 +93,7 @@ interface CoachModalProps {
  isPageMode?: boolean;
  onNavigateClient?: () => void;
  onLogoutCoach?: () => void;
- onUnlockSession?: (enteredPin: string) => Promise<boolean>;
+ onUnlockSession?: (enteredPin: string) => Promise<boolean | string> | boolean | string;
 }
 
 export const CoachModal: React.FC<CoachModalProps> = ({
@@ -108,18 +108,35 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  onUnlockSession,
 }) => {
  const [pagePinInput, setPagePinInput] = useState('');
- const [pagePinError, setPagePinError] = useState(false);
+ const [pagePinError, setPagePinError] = useState<string | null>(null);
  const [isPagePinSubmitting, setIsPagePinSubmitting] = useState(false);
 
  const handlePagePinSubmit = async (e: React.FormEvent) => {
  e.preventDefault();
+ const trimmed = pagePinInput.trim();
+ if (!trimmed) {
+ setPagePinError('يرجى إدخال رمز PIN للدخول.');
+ return;
+ }
+ if (isPagePinSubmitting) return;
  if (!onUnlockSession) return;
+
  setIsPagePinSubmitting(true);
- setPagePinError(false);
- const success = await onUnlockSession(pagePinInput);
+ setPagePinError(null);
+ try {
+ const result = await onUnlockSession(trimmed);
+ if (result === true) {
+ setPagePinError(null);
+ setPagePinInput('');
+ } else if (typeof result === 'string' && result) {
+ setPagePinError(result);
+ } else {
+ setPagePinError('رمز PIN غير صحيح. يرجى المحاولة مرة أخرى.');
+ }
+ } catch (err) {
+ setPagePinError(err instanceof Error && err.message ? err.message : 'حدث خطأ أثناء التحقق من الرمز.');
+ } finally {
  setIsPagePinSubmitting(false);
- if (!success) {
- setPagePinError(true);
  }
  };
 
@@ -557,7 +574,7 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  setDraft({...draft, tips: updated });
  };
 
- if (isPageMode &&!coachSessionUnlocked) {
+ if (!coachSessionUnlocked) {
  return (
  <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4 text-right dir-rtl">
  <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl border border-slate-200 dark:border-slate-800 app-overlay-shadow p-6 sm:p-5 space-y-4">
@@ -580,26 +597,29 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  </label>
  <input
  type="password"
+ inputMode="numeric"
+ autoComplete="one-time-code"
  maxLength={8}
+ autoFocus
  value={pagePinInput}
  onChange={(e) => {
  setPagePinInput(e.target.value);
- setPagePinError(false);
+ setPagePinError(null);
  }}
  placeholder="•••••"
- className="w-full text-center tracking-widest text-lg font-black min-h-[48px] p-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-500"
+ className="w-full text-center tracking-widest text-lg font-black min-h-[48px] p-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-[var(--app-hero)]"
  />
  {pagePinError && (
  <p className="text-xs font-bold text-rose-500 mt-2 text-center">
- رمز PIN غير صحيح. يرجى المحاولة مرة أخرى 
+ {pagePinError}
  </p>
  )}
  </div>
 
  <button
  type="submit"
- disabled={isPagePinSubmitting}
- className="w-full min-h-[48px] py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+ disabled={isPagePinSubmitting || !pagePinInput.trim()}
+ className="w-full min-h-[48px] py-3 rounded-2xl bg-[var(--app-hero)] hover:bg-[var(--app-hero-hover)] disabled:opacity-50 text-white font-black text-sm transition-all cursor-pointer flex items-center justify-center gap-2"
  >
  {isPagePinSubmitting? (
  <Loader2 className="w-5 h-5 animate-spin" />
@@ -614,8 +634,8 @@ export const CoachModal: React.FC<CoachModalProps> = ({
 
  <div className="pt-4 border-t border-slate-100 dark:border-slate-800 text-center">
  <button
- onClick={onNavigateClient}
- className="text-xs font-bold text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 transition-colors inline-flex items-center gap-1 cursor-pointer"
+ onClick={onNavigateClient || onClose}
+ className="text-xs font-bold text-slate-500 hover:text-[var(--app-hero)] dark:text-slate-400 dark:hover:text-[var(--app-hero)] transition-colors inline-flex items-center gap-1 cursor-pointer"
  >
  <span>الانتقال إلى شاشة العميل </span>
  </button>
