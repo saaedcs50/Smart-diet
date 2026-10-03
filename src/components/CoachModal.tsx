@@ -52,7 +52,9 @@ import {
  Leaf,
  Fish,
  Sparkles,
- Search
+ Search,
+ FileDown,
+ Printer
 } from 'lucide-react';
 import { MealItem, CheckItem, SupplementItem, PlanConfig, SectionVisibility } from '../types';
 import { DEFAULT_PLAN, DEFAULT_VISIBLE_SECTIONS, exportFullBackupJSON, importFullBackupJSON, isSectionVisible, loadDayLog, getTodayDateString } from '../utils/storage';
@@ -69,6 +71,7 @@ import { MealExchangePlanner } from './MealExchangePlanner';
 import { CoachOnboardingModal } from './CoachOnboardingModal';
 import { MedicationCatalogModal } from './MedicationCatalogModal';
 import { MedicationInputRow } from './MedicationInputRow';
+import { PlanPDFExportModal } from './PlanPDFExportModal';
 import { 
   autoConvertMealTextToFasting, 
   detectFastingSubstitutions, 
@@ -206,6 +209,7 @@ export const CoachModal: React.FC<CoachModalProps> = ({
 
  // Dedicated WhatsApp Share Options Modal state
  const [showShareOptionsModal, setShowShareOptionsModal] = useState(false);
+ const [showPDFExportModal, setShowPDFExportModal] = useState(false);
  const [showFastingSubBankModal, setShowFastingSubBankModal] = useState(false);
  const [fastingSubSearch, setFastingSubSearch] = useState('');
  const [fastingSubCategory, setFastingSubCategory] = useState<string>('all');
@@ -727,6 +731,16 @@ export const CoachModal: React.FC<CoachModalProps> = ({
 
  <button
  type="button"
+ onClick={() => setShowPDFExportModal(true)}
+ className="min-h-[40px] px-3 sm:px-4 py-2 rounded-2xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/30 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer"
+ title="تصدير الخطة كملف PDF رسمي (Medical Prescription)"
+ >
+ <FileDown className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+ <span>تصدير PDF</span>
+ </button>
+
+ <button
+ type="button"
  onClick={onNavigateClient}
  className="min-h-[40px] px-3 sm:px-4 py-2 rounded-2xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer"
  title="معاينة شاشة العميل"
@@ -767,6 +781,16 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  </>
  ): (
  <>
+ <button
+ type="button"
+ onClick={() => setShowPDFExportModal(true)}
+ className="min-h-[40px] px-3 sm:px-4 py-2 rounded-2xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/30 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+ title="تصدير الخطة كملف PDF رسمي (Medical Prescription)"
+ >
+ <FileDown className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+ <span>تصدير PDF</span>
+ </button>
+
  <button
  type="button"
  onClick={() => setShowCoachOnboarding(true)}
@@ -2342,6 +2366,39 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  {/* TAB 6: Backup & Share (Spacious 2-Column Responsive Grid) */}
  {activeSubTab === 'backup' && (
  <div className="space-y-5">
+  {/* Official Medical PDF Export Feature Card */}
+  <div className="p-5 sm:p-6 rounded-3xl bg-linear-to-r from-teal-50 via-emerald-50 to-teal-50 dark:from-teal-950/40 dark:via-emerald-950/40 dark:to-teal-950/40 border-2 border-teal-500/40 dark:border-teal-700/60 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+   <div className="flex items-start sm:items-center gap-3.5">
+    <div className="w-12 h-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center font-bold shadow-md shrink-0">
+     <FileDown className="w-6 h-6" />
+    </div>
+    <div>
+     <div className="flex items-center gap-2 flex-wrap">
+      <h4 className="font-black text-slate-900 dark:text-slate-100 text-sm sm:text-base">
+       تصدير الخطة كملف PDF رسمي (Medical Dietary Prescription)
+      </h4>
+      <span className="text-[12px] font-black px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700">
+       A4 عالي الدقة
+      </span>
+     </div>
+     <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-2xl leading-relaxed font-medium">
+      توليد وطباعة روشتة غذائية علاجية شاملة باسم المتدرب ({draft.clientName || 'غير محدد'})، تشمل جدول الوجبات، البدائل الإكلينيكية، الماكروز والسعرات، الأدوية والمكملات، والختم الطبي المعتمد لـ {BRAND.doctorName}.
+     </p>
+    </div>
+   </div>
+
+   <div className="flex items-center gap-2 shrink-0">
+    <button
+     type="button"
+     onClick={() => setShowPDFExportModal(true)}
+     className="px-5 py-3 rounded-2xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs sm:text-sm flex items-center gap-2 shadow-md transition-all cursor-pointer"
+    >
+     <FileDown className="w-4 h-4" />
+     <span>معاينة وتصدير PDF الآن</span>
+    </button>
+   </div>
+  </div>
+
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
  
  {/* Column 1: WhatsApp Export Options & Sync Code */}
@@ -2618,6 +2675,16 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  )}
  
  <div className="flex items-center gap-2 flex-1 justify-end">
+ <button
+ type="button"
+ onClick={() => setShowPDFExportModal(true)}
+ className="min-h-[44px] h-12 px-3 sm:px-4 rounded-2xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/30 font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+ title="تصدير الخطة كملف PDF رسمي (Medical Prescription)"
+ >
+ <FileDown className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+ <span className="hidden xs:inline">تصدير PDF</span>
+ </button>
+
  <button
  type="button"
  onClick={() => setShowShareOptionsModal(true)}
@@ -3084,6 +3151,33 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  </div>
  </div>
 
+ {/* Option 4: Official Medical PDF Plan & Prescription */}
+ <div className="p-3.5 rounded-2xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/70 space-y-2">
+ <div className="flex items-center justify-between text-teal-900 dark:text-teal-200 font-black">
+ <div className="flex items-center gap-1.5">
+ <FileDown className="w-4 h-4 text-teal-600" />
+ <span>4. تصدير روشتة ونظام غذائي PDF رسمي:</span>
+ </div>
+ <span className="text-[12px] font-bold text-teal-600 dark:text-teal-400">A4 للطباعة</span>
+ </div>
+
+ <p className="text-[12px] text-teal-800/80 dark:text-teal-300 leading-relaxed">
+ توليد ملف PDF جاهز بمقاس A4 رسمي مع الختم وتوزيع الوجبات والماكروز لإرساله كملف أو طباعته ورقياً.
+ </p>
+
+ <button
+ type="button"
+ onClick={() => {
+ setShowShareOptionsModal(false);
+ setShowPDFExportModal(true);
+ }}
+ className="w-full py-2.5 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+ >
+ <FileDown className="w-4 h-4" />
+ <span>معاينة وتصدير الـ PDF الآن</span>
+ </button>
+ </div>
+
  </div>
 
  {/* Footer */}
@@ -3112,6 +3206,14 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  onNotify(`تمت إضافة ${newItem.name} إلى خطة المتدرب بنجاح `);
  }}
  alreadySelectedNames={(draft.supplements || []).map((s) => s.name)}
+ />
+
+ {/* Plan PDF Export Modal */}
+ <PlanPDFExportModal
+ plan={draft}
+ isOpen={showPDFExportModal}
+ onClose={() => setShowPDFExportModal(false)}
+ onNotify={onNotify}
  />
  </div>
  );
