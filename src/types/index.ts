@@ -229,6 +229,21 @@ export interface FastingPlanConfig {
   lastUpdatedBy?: 'coach' | 'client';
 }
 
+// ============================================================================
+// Batch 2.4: هدف الأسبوع الواحد (WeeklyFocus)
+// ============================================================================
+export type WeeklyFocusType = 'water' | 'sleep' | 'meals' | 'checklist' | 'custom';
+
+export interface WeeklyFocusConfig {
+  type: WeeklyFocusType;
+  /** نص حر إلزامي عمليًا لنوع custom، واختياري وصفي لباقي الأنواع */
+  label?: string;
+  /** الهدف الرقمي خلال الأسبوع (مل ماء / ساعات نوم / عدد وجبات / بنود مهام / أيام إنجاز للمخصص) */
+  target: number;
+  /** تاريخ بداية الأسبوع YYYY-MM-DD */
+  weekStartISO: string;
+}
+
 export interface PlanConfig {
   clientName: string;
   dailyWaterGoalMl: number;
@@ -254,6 +269,8 @@ export interface PlanConfig {
   labTracking?: LabTrackingConfig;
   // Advanced Fasting System (Islamic / Christian / Intermittent)
   fastingPlan?: FastingPlanConfig;
+  // Batch 2.4: Weekly Focus (اختياري — غيابه يعني لا بطاقة)
+  weeklyFocus?: WeeklyFocusConfig;
   // Features & Visibility
   targetCalories?: number | null;
   targetProtein?: number | null;
@@ -323,6 +340,8 @@ export interface DayLog {
   isFasting?: boolean;
   // Batch 1.3: Day-complete celebration shown once per day
   celebrationShown?: boolean;
+  // Batch 2.4: «أنجزت اليوم» لهدف الأسبوع المخصص (مرة واحدة في اليوم بحكم الحقل)
+  focusDone?: boolean;
   // Today fasting status override by client or schedule
   isFastingDay?: boolean;
   fastingTypeOverride?: FastingType;

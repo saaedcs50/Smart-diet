@@ -23,6 +23,9 @@ import { formatLabSummaryForWhatsApp } from '../utils/labTracking';
 import { HelpButton } from './FeatureHelpModal';
 import { openWhatsAppShare } from '../utils/whatsapp';
 import { BRAND } from '../config/brand';
+import { ShoppingListModal } from './ShoppingListModal';
+import { MilestonesSection } from './MilestonesSection';
+import { computeWeeklyFocusProgress, formatWeeklyFocusSummary } from '../utils/weeklyFocus';
 
 interface ReportsTabProps {
  plan: PlanConfig;
@@ -39,6 +42,15 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
 }) => {
  const [rangeDays, setRangeDays] = useState<number>(7);
  const [chartMetric, setChartMetric] = useState<'score' | 'weight' | 'water' | 'exercise'>('score');
+ const [showShoppingList, setShowShoppingList] = useState(false);
+
+ // Batch 2.4: سطر ملخص هدف الأسبوع في التقرير الأسبوعي
+ const weeklyFocusLine = plan.weeklyFocus
+ ? formatWeeklyFocusSummary(
+ plan.weeklyFocus,
+ computeWeeklyFocusProgress(plan.weeklyFocus, plan, getAllStoredDayLogs())
+ )
+ : null;
 
  // Generate historical data points for the selected range
  const historyData = (() => {
@@ -105,6 +117,9 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
  msg += ` *صافي تغير الوزن:* ${netWeightChange > 0? `+${netWeightChange}`: netWeightChange} كجم\n`;
  }
  msg += ` *أفضل يوم التزام:* ${bestDay.date} (${bestDay.score}%)\n`;
+ if (weeklyFocusLine) {
+ msg += `${weeklyFocusLine}\n`;
+ }
  msg += `\n`;
  msg += ` *${BRAND.appName}: ${BRAND.doctorName}*`;
 
@@ -297,6 +312,16 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
  </div>
  </div>
 
+ {/* Batch 2.4: ملخص هدف الأسبوع (سطر واحد) */}
+ {weeklyFocusLine && (
+ <div className="bg-[var(--app-card)] border border-violet-100 dark:border-violet-900/40 rounded-3xl px-5 py-3.5">
+ <span className="text-xs font-black text-brand-text dark:text-purple-100">{weeklyFocusLine}</span>
+ </div>
+ )}
+
+ {/* Batch 2.3: إنجازاتي */}
+ <MilestonesSection plan={plan} onNotify={onNotify} />
+
  {/* 2.5 Menstrual Cycle & Hormone Phase Review */}
  {plan.cycleTracking?.enabled && (() => {
  const cycleInfo = getCycleInfo(plan.cycleTracking, currentDate);
@@ -406,7 +431,22 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
  <Copy className="w-4 h-4" />
  نسخ الملخص
  </button>
+
+ <button
+ onClick={() => setShowShoppingList(true)}
+ className="py-3 px-3 rounded-2xl bg-[var(--app-card)] hover:bg-[var(--app-card-muted)] text-brand-text dark:text-purple-100 border border-violet-100 dark:border-violet-900/40 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer sm:col-span-2"
+ >
+ 🛒 قائمة تسوق الأسبوع
+ </button>
  </div>
+
+ {/* Batch 2.1: قائمة التسوق الأسبوعية */}
+ <ShoppingListModal
+ isOpen={showShoppingList}
+ onClose={() => setShowShoppingList(false)}
+ plan={plan}
+ onNotify={onNotify}
+ />
  </div>
  );
 };

@@ -3,6 +3,7 @@ import { Download, Share2, Circle, X, Check } from 'lucide-react';
 import { DayLog, PlanConfig } from '../types';
 import { calculateDayScore, calculateStreak, calculateEffectiveWaterGoal } from '../utils/calculations';
 import { BRAND } from '../config/brand';
+import { markReportShared } from '../utils/milestones';
 
 interface VisualReportCardProps {
  plan: PlanConfig;
@@ -10,6 +11,9 @@ interface VisualReportCardProps {
  currentDate: string;
  onClose: () => void;
  onNotify: (msg: string) => void;
+ /** Batch 2.3: بطاقة إنجاز (معلم) بلون وعنوان مختلفين عن بطاقة اليوم */
+ variant?: 'day' | 'milestone';
+ milestoneLabel?: string;
 }
 
 export const VisualReportCard: React.FC<VisualReportCardProps> = ({
@@ -18,7 +22,10 @@ export const VisualReportCard: React.FC<VisualReportCardProps> = ({
  currentDate,
  onClose,
  onNotify,
+ variant = 'day',
+ milestoneLabel,
 }) => {
+ const isMilestone = variant === 'milestone';
  const canvasRef = useRef<HTMLCanvasElement | null>(null);
  const [imageGenerated, setImageGenerated] = useState<string | null>(null);
 
@@ -58,9 +65,15 @@ export const VisualReportCard: React.FC<VisualReportCardProps> = ({
 
  // 1. Background Gradient
  const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+ if (isMilestone) {
+ bgGrad.addColorStop(0, '#4c1d95'); // violet (بطاقة إنجاز)
+ bgGrad.addColorStop(0.5, '#1e1b4b'); // indigo dark
+ bgGrad.addColorStop(1, '#2e1065'); // deep violet
+ } else {
  bgGrad.addColorStop(0, '#064e3b'); // dark emerald
  bgGrad.addColorStop(0.5, '#0f172a'); // slate dark
  bgGrad.addColorStop(1, '#022c22'); // deep forest
+ }
  ctx.fillStyle = bgGrad;
  ctx.fillRect(0, 0, width, height);
 
@@ -107,7 +120,7 @@ export const VisualReportCard: React.FC<VisualReportCardProps> = ({
 
  ctx.fillStyle = '#94a3b8';
  ctx.font = '500 32px "Cairo", system-ui, sans-serif';
- ctx.fillText(`📅 يوميات وتطور: ${currentDate}`, width / 2, 255);
+ ctx.fillText(isMilestone ? `🏆 إنجاز جديد: ${milestoneLabel || ''}` : `📅 يوميات وتطور: ${currentDate}`, width / 2, 255);
 
  // 3. Central Big Score Circle
  const circleX = width / 2;
@@ -206,6 +219,7 @@ export const VisualReportCard: React.FC<VisualReportCardProps> = ({
 
  const handleDownload = () => {
  if (!imageGenerated) return;
+ markReportShared();
  const a = document.createElement('a');
  a.href = imageGenerated;
  a.download = `فورمة_${plan.clientName || 'كارت'}_${currentDate}.png`;
@@ -215,6 +229,7 @@ export const VisualReportCard: React.FC<VisualReportCardProps> = ({
 
  const handleShareNative = () => {
  if (!imageGenerated) return;
+ markReportShared();
  if (navigator.share) {
  fetch(imageGenerated)
  .then((res) => res.blob())
@@ -241,7 +256,7 @@ export const VisualReportCard: React.FC<VisualReportCardProps> = ({
  </div>
  <div>
  <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
- كارت إنجاز اليوم كصورة ستوري 📸
+ {isMilestone ? `🏆 بطاقة إنجاز: ${milestoneLabel || ''}` : 'كارت إنجاز اليوم كصورة ستوري 📸'}
  </h3>
  <p className="text-[12px] text-slate-400">جاهز للمشاركة على ستوري الواتساب أو انستجرام</p>
  </div>
