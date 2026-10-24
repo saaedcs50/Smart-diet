@@ -321,6 +321,8 @@ export interface DayLog {
   fastingEndTime?: number | null;
   completedFastingHours?: number | null;
   isFasting?: boolean;
+  // Batch 1.3: Day-complete celebration shown once per day
+  celebrationShown?: boolean;
   // Today fasting status override by client or schedule
   isFastingDay?: boolean;
   fastingTypeOverride?: FastingType;

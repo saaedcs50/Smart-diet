@@ -31,6 +31,8 @@ export const StorageKeys = {
   lastWaterNotif: () => ns('last_water_notif'),
   firedNotifsToday: () => ns('fired_notifs_today'),
   lastAppBoot: () => ns('last_app_boot'),
+  /** Batch 1.5: معرّف فجوة الغياب التي عُرضت لها بطاقة الترحيب (تاريخ آخر نشاط) */
+  lastWelcomeBackGapDate: () => ns('last_welcome_back_gap_date'),
   darkMode: () => ns('dark_mode'),
   onboardingSeen: () => ns('onboarding_seen'),
   coachOnboardingSeen: () => ns('coach_onboarding_seen'),

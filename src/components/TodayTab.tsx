@@ -1,20 +1,38 @@
-import React, { useState, useMemo } from 'react';
-import { 
-  Lightbulb, 
-  Share2, 
-  Utensils, 
-  Droplets, 
-  Activity, 
-  CheckSquare, 
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  Lightbulb,
+  Share2,
+  Utensils,
+  Droplets,
+  Activity,
+  CheckSquare,
   Bell,
   Sliders,
   Sparkles,
-  Flame
+  Flame,
+  Copy,
+  X,
+  Send
 } from 'lucide-react';
 import { PlanConfig, DayLog } from '../types';
 import { BRAND } from '../config/brand';
 import { ScoreBreakdown } from '../utils/calculations';
-import { isSectionVisible } from '../utils/storage';
+import { isSectionVisible, loadDayLog, getTodayDateString, parseLocalDate, getAllStoredDayLogs } from '../utils/storage';
+import { buildCopiedDayLog, getCopySummary, hasCopyableContent, isDayEmptyOrPartial } from '../utils/dayCopy';
+import { shouldShowCelebration, markCelebrationShown } from '../utils/celebration';
+import { hasAnyDayActivity } from '../utils/streakReminder';
+import {
+  computeAbsenceGap,
+  shouldShowWelcomeBack,
+  buildWelcomeBackMessage,
+  buildWelcomeBackWhatsAppText,
+  getLastWelcomeBackGapDate,
+  markWelcomeBackShown,
+} from '../utils/welcomeBack';
+import { openWhatsAppShare } from '../utils/whatsapp';
+import { QuickActionBar } from './QuickActionBar';
+import { DayCompleteModal } from './DayCompleteModal';
+import { BottomSheetModal } from './BottomSheetModal';
 import { ActivityRings } from './ActivityRings';
 import { WeekStripCalendar } from './WeekStripCalendar';
 import { NextMealSpotlight } from './NextMealSpotlight';
@@ -69,6 +87,60 @@ export const TodayTab: React.FC<TodayTabProps> = ({
   const cycleInfo = plan.cycleTracking?.enabled ? getCycleInfo(plan.cycleTracking, currentDate) : null;
   const fastingStatus = useMemo(() => getTodayFastingStatus(plan, day, currentDate), [plan, day, currentDate]);
 
+  const todayStr = getTodayDateString();
+  const isToday = currentDate === todayStr;
+
+  // ── Batch 1.1: انسخ أمس ──────────────────────────────────────────────
+  const yesterdayStr = useMemo(() => {
+    const d = parseLocalDate(currentDate);
+    d.setDate(d.getDate() - 1);
+    return getTodayDateString(d);
+  }, [currentDate]);
+  const yesterdayLog = useMemo(() => loadDayLog(yesterdayStr), [yesterdayStr]);
+  const [showCopyConfirm, setShowCopyConfirm] = useState(false);
+  const copySummary = useMemo(() => getCopySummary(yesterdayLog), [yesterdayLog]);
+  const showCopyButton = hasCopyableContent(yesterdayLog) && isDayEmptyOrPartial(day);
+  const todayHasData = hasAnyDayActivity(day);
+
+  const handleConfirmCopyYesterday = () => {
+    onUpdateDay(buildCopiedDayLog(yesterdayLog, currentDate, day));
+    setShowCopyConfirm(false);
+    onNotify?.('تم نسخ سجل أمس إلى اليوم ✅');
+  };
+
+  // ── Batch 1.3: لحظة إنجاز اليوم (مرة واحدة، لليوم الحالي فقط) ──────
+  const [showCelebration, setShowCelebration] = useState(false);
+  useEffect(() => {
+    if (
+      shouldShowCelebration({
+        scoreTotal: score.total,
+        currentDate,
+        todayDate: todayStr,
+        alreadyShown: day.celebrationShown,
+        isFreezeDay: day.isFreeze,
+      })
+    ) {
+      onUpdateDay(markCelebrationShown(day));
+      setShowCelebration(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [score.total, currentDate, day.celebrationShown, day.isFreeze]);
+
+  // ── Batch 1.5: عودة بعد غياب (مرة واحدة لكل فجوة) ───────────────────
+  const absence = useMemo(
+    () => (isToday ? computeAbsenceGap(getAllStoredDayLogs(), todayStr) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isToday, todayStr, day]
+  );
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+  const showWelcomeBack =
+    !welcomeDismissed && !!absence && shouldShowWelcomeBack(absence, getLastWelcomeBackGapDate());
+  useEffect(() => {
+    if (showWelcomeBack && absence?.lastActivityDate) {
+      markWelcomeBackShown(absence.lastActivityDate);
+    }
+  }, [showWelcomeBack, absence?.lastActivityDate]);
+
   // Direct practical greeting
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -79,7 +151,7 @@ export const TodayTab: React.FC<TodayTabProps> = ({
   }, []);
 
   return (
-    <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-200">
+    <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-200 pb-20">
       {/* 1. Clear, direct greeting banner */}
       <div className="flex items-center justify-between px-1">
         <div>
@@ -111,6 +183,54 @@ export const TodayTab: React.FC<TodayTabProps> = ({
           currentDate={currentDate}
           onDateChange={onDateChange}
         />
+      )}
+
+      {/* Batch 1.5: Welcome-back card after an absence of 3+ days */}
+      {showWelcomeBack && absence && (
+        <div className="p-4 rounded-3xl bg-teal-50/90 dark:bg-teal-950/30 border border-teal-200/80 dark:border-teal-800/60 flex items-start justify-between gap-3 animate-in fade-in duration-200">
+          <div className="min-w-0">
+            <p className="text-sm sm:text-base font-black text-slate-800 dark:text-slate-100">
+              {buildWelcomeBackMessage(absence.gapDays)}
+            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+              آخر نشاط مسجل كان يوم {absence.lastActivityDate} — أي حاجة بسيطة النهاردة هترجعك للسلسلة.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                openWhatsAppShare(buildWelcomeBackWhatsAppText(plan, absence.gapDays));
+                setWelcomeDismissed(true);
+              }}
+              className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-teal-500 hover:bg-teal-600 text-white text-xs font-black transition-colors cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>أرسل لأخصائيتك إنك رجعت</span>
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setWelcomeDismissed(true)}
+            className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-white/70 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+            aria-label="إغلاق بطاقة الترحيب"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Batch 1.1: Copy yesterday button */}
+      {showCopyButton && (
+        <button
+          type="button"
+          onClick={() => setShowCopyConfirm(true)}
+          className="w-full p-3.5 rounded-3xl bg-white/90 dark:bg-slate-900/90 border border-dashed border-teal-300 dark:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950/30 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <Copy className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+          <span className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-200">انسخ أمس</span>
+          <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+            كرر وجبات وأدوية وماء أمس في هذا اليوم
+          </span>
+        </button>
       )}
 
       {/* Optional Subtle Cycle Phase Badge */}
@@ -310,6 +430,60 @@ export const TodayTab: React.FC<TodayTabProps> = ({
           </button>
         </div>
       )}
+
+      {/* Batch 1.2: Fixed quick action bar (Today tab only) */}
+      <QuickActionBar plan={plan} day={day} onUpdateDay={onUpdateDay} />
+
+      {/* Batch 1.3: Day-complete celebration (once per day) */}
+      <DayCompleteModal
+        isOpen={showCelebration}
+        onClose={() => setShowCelebration(false)}
+        plan={plan}
+        day={day}
+        streak={streak}
+        onShare={onOpenStoryCard}
+      />
+
+      {/* Batch 1.1: Copy-yesterday confirmation */}
+      <BottomSheetModal
+        isOpen={showCopyConfirm}
+        onClose={() => setShowCopyConfirm(false)}
+        title="نسخ سجل أمس إلى اليوم"
+      >
+        <div dir="rtl" className="space-y-3">
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-200">سيتم نسخ الآتي من أمس:</p>
+          <ul className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 space-y-1.5 list-disc pr-5">
+            <li>{copySummary.mealsCount} وجبات بحالتها المسجلة</li>
+            <li>{copySummary.medicationsTakenCount} جرعات دواء مأخوذة</li>
+            <li>{copySummary.waterMl} مل ماء</li>
+            <li>{copySummary.checksCount} بنود من قائمة المهام اليومية</li>
+          </ul>
+          {todayHasData && (
+            <p className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/60 rounded-2xl p-3">
+              تنبيه: هذا اليوم فيه بيانات بالفعل — سيتم الدمج/الاستبدال للحقول المنسوخة فقط.
+            </p>
+          )}
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+            لن يتم نسخ الوزن أو النوم أو المزاج أو الأعراض أو الملاحظات — دي بيانات خاصة بكل يوم.
+          </p>
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={handleConfirmCopyYesterday}
+              className="flex-1 py-3 rounded-2xl bg-teal-500 hover:bg-teal-600 text-white font-black text-sm cursor-pointer transition-colors"
+            >
+              تأكيد النسخ
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCopyConfirm(false)}
+              className="flex-1 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-black text-sm cursor-pointer transition-colors"
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      </BottomSheetModal>
 
       {/* Card Customizer Modal */}
       {isCardCustomizerOpen && (
