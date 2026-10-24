@@ -30,8 +30,23 @@ import {
   markWelcomeBackShown,
 } from '../utils/welcomeBack';
 import { openWhatsAppShare } from '../utils/whatsapp';
+import {
+  MILESTONE_DEFINITIONS,
+  MilestoneDefinition,
+  computeMilestones,
+  resolveMilestoneState,
+  loadMilestonesUnlocked,
+  saveMilestonesUnlocked,
+  markMilestonesInitialized,
+  getReportSharedAt,
+} from '../utils/milestones';
 import { QuickActionBar } from './QuickActionBar';
 import { DayCompleteModal } from './DayCompleteModal';
+import { WeeklyFocusCard } from './WeeklyFocusCard';
+import { ShoppingListModal } from './ShoppingListModal';
+import { IntakeWizard } from './IntakeWizard';
+import { MilestoneUnlockModal } from './MilestoneUnlockModal';
+import { VisualReportCard } from './VisualReportCard';
 import { BottomSheetModal } from './BottomSheetModal';
 import { ActivityRings } from './ActivityRings';
 import { WeekStripCalendar } from './WeekStripCalendar';
@@ -141,6 +156,29 @@ export const TodayTab: React.FC<TodayTabProps> = ({
     }
   }, [showWelcomeBack, absence?.lastActivityDate]);
 
+  // ── Batch 2.1/2.5: مداخل قائمة التسوق والاستبيان ────────────────────
+  const [showShoppingList, setShowShoppingList] = useState(false);
+  const [showIntakeWizard, setShowIntakeWizard] = useState(false);
+
+  // ── Batch 2.3: تهيئة المعالم + الاحتفال بآخر معلم جديد فقط ──────────
+  const [celebratedMilestone, setCelebratedMilestone] = useState<MilestoneDefinition | null>(null);
+  const [milestoneToShare, setMilestoneToShare] = useState<MilestoneDefinition | null>(null);
+  const [showMilestoneCard, setShowMilestoneCard] = useState(false);
+  useEffect(() => {
+    const stored = loadMilestonesUnlocked();
+    const computed = computeMilestones(plan, getAllStoredDayLogs(), getReportSharedAt());
+    const resolution = resolveMilestoneState(stored, computed);
+    saveMilestonesUnlocked(resolution.unlocked);
+    markMilestonesInitialized();
+    // الحساب الرجعي والفتح الحي سواء: يُحتفل بآخر معلم جديد واحد فقط — لا احتفالات جماعية
+    if (resolution.celebrationId && resolution.newlyUnlocked.length > 0) {
+      const def = MILESTONE_DEFINITIONS.find((d) => d.id === resolution.celebrationId);
+      if (def) setCelebratedMilestone(def);
+    }
+    // تُنفَّذ مرة واحدة عند الإقلاع
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Direct practical greeting
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -184,6 +222,9 @@ export const TodayTab: React.FC<TodayTabProps> = ({
           onDateChange={onDateChange}
         />
       )}
+
+      {/* Batch 2.4: هدف الأسبوع يتصدر اليوم */}
+      <WeeklyFocusCard plan={plan} day={day} currentDate={currentDate} onUpdateDay={onUpdateDay} />
 
       {/* Batch 1.5: Welcome-back card after an absence of 3+ days */}
       {showWelcomeBack && absence && (
@@ -232,6 +273,26 @@ export const TodayTab: React.FC<TodayTabProps> = ({
           </span>
         </button>
       )}
+
+      {/* Batch 2.1 + 2.5: مداخل تسوق الأسبوع والاستبيان */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <button
+          type="button"
+          onClick={() => setShowShoppingList(true)}
+          className="p-3.5 rounded-3xl bg-white/90 dark:bg-slate-900/90 border border-violet-200 dark:border-violet-800 hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <span className="text-sm">🛒</span>
+          <span className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-200">تسوق الأسبوع</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowIntakeWizard(true)}
+          className="p-3.5 rounded-3xl bg-white/90 dark:bg-slate-900/90 border border-teal-200 dark:border-teal-800 hover:bg-teal-50 dark:hover:bg-teal-950/30 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <span className="text-sm">📋</span>
+          <span className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-200">استبيان عميل جديد</span>
+        </button>
+      </div>
 
       {/* Optional Subtle Cycle Phase Badge */}
       {plan.cycleTracking?.enabled &&
@@ -484,6 +545,49 @@ export const TodayTab: React.FC<TodayTabProps> = ({
           </div>
         </div>
       </BottomSheetModal>
+
+      {/* Batch 2.1: قائمة التسوق الأسبوعية */}
+      <ShoppingListModal
+        isOpen={showShoppingList}
+        onClose={() => setShowShoppingList(false)}
+        plan={plan}
+        onNotify={onNotify || (() => {})}
+      />
+
+      {/* Batch 2.5: استبيان العميل الجديد (مسودة فقط) */}
+      {showIntakeWizard && (
+        <IntakeWizard
+          isOpen={showIntakeWizard}
+          onClose={() => setShowIntakeWizard(false)}
+          plan={plan}
+          onNotify={onNotify || (() => {})}
+        />
+      )}
+
+      {/* Batch 2.3: احتفال فتح معلم + بطاقة مشاركته */}
+      <MilestoneUnlockModal
+        isOpen={!!celebratedMilestone}
+        onClose={() => setCelebratedMilestone(null)}
+        milestone={celebratedMilestone}
+        onShare={() => {
+          setMilestoneToShare(celebratedMilestone);
+          setShowMilestoneCard(true);
+        }}
+      />
+      {showMilestoneCard && milestoneToShare && (
+        <VisualReportCard
+          plan={plan}
+          day={day}
+          currentDate={currentDate}
+          onClose={() => {
+            setShowMilestoneCard(false);
+            setMilestoneToShare(null);
+          }}
+          onNotify={onNotify || (() => {})}
+          variant="milestone"
+          milestoneLabel={`${milestoneToShare.icon} ${milestoneToShare.label}`}
+        />
+      )}
 
       {/* Card Customizer Modal */}
       {isCardCustomizerOpen && (

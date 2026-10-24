@@ -33,6 +33,16 @@ export const StorageKeys = {
   lastAppBoot: () => ns('last_app_boot'),
   /** Batch 1.5: معرّف فجوة الغياب التي عُرضت لها بطاقة الترحيب (تاريخ آخر نشاط) */
   lastWelcomeBackGapDate: () => ns('last_welcome_back_gap_date'),
+  /** Batch 2.1: قائمة تسوق أسبوعية محفوظة لكل بداية أسبوع */
+  shoppingListWeek: (weekStartISO: string) => ns(`shopping_list_${weekStartISO}`),
+  /** Batch 2.3: المعالم المفتوحة Record<milestoneId, dateISO> */
+  milestonesUnlocked: () => ns('milestones_unlocked'),
+  /** Batch 2.3: هل سبق تشغيل حساب المعالم على هذا الجهاز؟ (للحساب الرجعي) */
+  milestonesInitialized: () => ns('milestones_initialized'),
+  /** Batch 2.3: تاريخ أول مشاركة تقرير (وقود معلم «أول تقرير مُشارك») */
+  reportSharedAt: () => ns('report_shared_at'),
+  /** Batch 2.5: مسودة خطة الاستبيان — مستقلة تمامًا عن الخطة النشطة */
+  intakeDraft: () => ns('intake_draft'),
   darkMode: () => ns('dark_mode'),
   onboardingSeen: () => ns('onboarding_seen'),
   coachOnboardingSeen: () => ns('coach_onboarding_seen'),

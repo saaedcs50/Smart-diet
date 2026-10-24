@@ -56,7 +56,11 @@ import {
  FileDown,
  Printer
 } from 'lucide-react';
-import { MealItem, CheckItem, SupplementItem, PlanConfig, SectionVisibility } from '../types';
+import { MealItem, CheckItem, SupplementItem, PlanConfig, SectionVisibility, WeeklyFocusType } from '../types';
+import { IntakeDraftRecord, loadIntakeDraft, clearIntakeDraft } from '../utils/intake';
+import { getWeekStartISO } from '../utils/shoppingList';
+import { WEEKLY_FOCUS_TYPE_LABELS } from '../utils/weeklyFocus';
+import { IntakeWizard } from './IntakeWizard';
 import { DEFAULT_PLAN, DEFAULT_VISIBLE_SECTIONS, exportFullBackupJSON, importFullBackupJSON, isSectionVisible, loadDayLog, getTodayDateString, getAllStoredDayLogs, parseLocalDate } from '../utils/storage';
 import { findLastActivityDate } from '../utils/welcomeBack';
 import { calculateDayScore } from '../utils/calculations';
@@ -217,6 +221,29 @@ export const CoachModal: React.FC<CoachModalProps> = ({
 
  // Weekly Message Draft state in Coach Panel
  const [coachWeeklyDraftText, setCoachWeeklyDraftText] = useState<string | null>(null);
+
+ // Batch 2.5: مسودة الاستبيان المحفوظة (مستقلة عن الخطة النشطة)
+ const [intakeDraftRecord, setIntakeDraftRecord] = useState<IntakeDraftRecord | null>(() => loadIntakeDraft());
+ const [intakeImported, setIntakeImported] = useState(false);
+ const [showIntakeWizard, setShowIntakeWizard] = useState(false);
+
+ const handleImportIntakeDraft = () => {
+ const record = loadIntakeDraft();
+ if (!record) {
+ onNotify('لا توجد مسودة استبيان محفوظة بعد');
+ return;
+ }
+ setDraft(JSON.parse(JSON.stringify(record.draft)) as PlanConfig);
+ setIntakeImported(true);
+ onNotify('تم تحميل مسودة الاستبيان في النموذج — راجِعيها وعدّليها قبل الحفظ');
+ };
+
+ const handleDeleteIntakeDraft = () => {
+ clearIntakeDraft();
+ setIntakeDraftRecord(null);
+ setIntakeImported(false);
+ onNotify('تم حذف مسودة الاستبيان دون أي أثر على الخطة الحالية');
+ };
 
  // Medication Catalog state
  const [showMedicationCatalog, setShowMedicationCatalog] = useState(false);
@@ -731,6 +758,11 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  <p className="text-[12px] sm:text-xs text-teal-600 dark:text-teal-400 font-bold truncate">
  آخر نشاط للعميل: {lastActivityLabel ?? 'لا يوجد نشاط مسجل بعد'}
  </p>
+ {intakeImported && (
+ <p className="text-[12px] sm:text-xs font-black px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 inline-block">
+ مسودة من الاستبيان — راجِع قبل الاعتماد
+ </p>
+ )}
  </div>
  </div>
  <div className="flex items-center gap-2 shrink-0 flex-wrap">
@@ -1090,6 +1122,169 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  </button>
  </div>
  </div>
+
+ {/* Batch 2.5 + 2.4: مسودة الاستبيان وهدف الأسبوع */}
+ <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+ <div className="p-4 sm:p-5 rounded-2xl bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800/60 space-y-3">
+ <h4 className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+ <FileText className="w-4 h-4 text-teal-600" />
+ مسودة استبيان العميل الجديد
+ </h4>
+ {intakeImported && (
+ <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-black text-center">
+ مسودة من الاستبيان — راجِع قبل الاعتماد
+ </div>
+ )}
+ <p className="text-[12px] sm:text-xs font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
+ {intakeDraftRecord
+ ? `توجد مسودة محفوظة من ${new Date(intakeDraftRecord.createdAt).toLocaleDateString('ar-EG')} باسم «${intakeDraftRecord.draft.clientName || 'عميل'}». الاستيراد يحمّلها في هذا النموذج فقط — لا تُعتمد إلا بحفظك من زر الحفظ العام.`
+ : 'لا توجد مسودة استبيان محفوظة بعد. المسودة لا تلمس الخطة النشطة أبدًا.'}
+ </p>
+ <div className="flex flex-wrap gap-2">
+ <button
+ type="button"
+ onClick={handleImportIntakeDraft}
+ disabled={!intakeDraftRecord}
+ className="min-h-[40px] px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white text-xs font-black transition-colors cursor-pointer"
+ >
+ استيراد مسودة الاستبيان
+ </button>
+ <button
+ type="button"
+ onClick={() => setShowIntakeWizard(true)}
+ className="min-h-[40px] px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 text-xs font-black transition-colors cursor-pointer"
+ >
+ فتح الاستبيان مع العميل
+ </button>
+ {intakeDraftRecord && (
+ <button
+ type="button"
+ onClick={handleDeleteIntakeDraft}
+ className="min-h-[40px] px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs font-black transition-colors cursor-pointer"
+ >
+ إلغاء المسودة
+ </button>
+ )}
+ </div>
+ </div>
+
+ <div className="p-4 sm:p-5 rounded-2xl bg-violet-50/70 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800/60 space-y-3">
+ <h4 className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+ <Zap className="w-4 h-4 text-violet-600" />
+ هدف الأسبوع الواحد (Weekly Focus)
+ </h4>
+ <label className="flex items-center gap-2 text-xs font-black text-slate-700 dark:text-slate-300 cursor-pointer">
+ <input
+ type="checkbox"
+ checked={!!draft.weeklyFocus}
+ onChange={(e) => {
+ if (e.target.checked) {
+ setDraft({
+ ...draft,
+ weeklyFocus: { type: 'water', target: 14000, weekStartISO: getWeekStartISO(getTodayDateString()) },
+ });
+ } else {
+ const next = { ...draft };
+ delete next.weeklyFocus;
+ setDraft(next);
+ }
+ }}
+ className="w-4 h-4 accent-violet-600"
+ />
+ تفعيل هدف أسبوعي للعميل
+ </label>
+ {draft.weeklyFocus && (
+ <div className="space-y-3">
+ <div className="grid grid-cols-2 gap-3">
+ <div>
+ <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">النوع</label>
+ <select
+ value={draft.weeklyFocus.type}
+ onChange={(e) =>
+ setDraft({
+ ...draft,
+ weeklyFocus: { ...draft.weeklyFocus!, type: e.target.value as WeeklyFocusType },
+ })
+ }
+ className="w-full text-xs sm:text-sm font-bold min-h-[40px] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+ >
+ {(Object.keys(WEEKLY_FOCUS_TYPE_LABELS) as WeeklyFocusType[]).map((t) => (
+ <option key={t} value={t}>
+ {WEEKLY_FOCUS_TYPE_LABELS[t]}
+ </option>
+ ))}
+ </select>
+ </div>
+ <div>
+ <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">
+ الهدف ({draft.weeklyFocus.type === 'water' ? 'مل' : draft.weeklyFocus.type === 'sleep' ? 'ساعة' : draft.weeklyFocus.type === 'meals' ? 'وجبة' : draft.weeklyFocus.type === 'checklist' ? 'بند' : 'يوم'})
+ </label>
+ <input
+ type="number"
+ min={1}
+ value={draft.weeklyFocus.target}
+ onChange={(e) =>
+ setDraft({
+ ...draft,
+ weeklyFocus: { ...draft.weeklyFocus!, target: parseFloat(e.target.value) || 0 },
+ })
+ }
+ className="w-full text-xs sm:text-sm font-bold min-h-[40px] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+ />
+ </div>
+ </div>
+ <div className="grid grid-cols-2 gap-3">
+ <div>
+ <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">بداية الأسبوع</label>
+ <input
+ type="date"
+ value={draft.weeklyFocus.weekStartISO}
+ onChange={(e) =>
+ setDraft({
+ ...draft,
+ weeklyFocus: { ...draft.weeklyFocus!, weekStartISO: e.target.value },
+ })
+ }
+ className="w-full text-xs sm:text-sm font-bold min-h-[40px] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+ />
+ </div>
+ {draft.weeklyFocus.type === 'custom' && (
+ <div>
+ <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">نص الهدف المخصص</label>
+ <input
+ type="text"
+ value={draft.weeklyFocus.label || ''}
+ onChange={(e) =>
+ setDraft({
+ ...draft,
+ weeklyFocus: { ...draft.weeklyFocus!, label: e.target.value },
+ })
+ }
+ placeholder="مثال: المشي بعد العشاء"
+ className="w-full text-xs sm:text-sm font-bold min-h-[40px] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+ />
+ </div>
+ )}
+ </div>
+ <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+ التقدم يُحسب تلقائيًا من سجلات العميل، والنوع «مخصص» يُحسب بزر «أنجزت اليوم» مرة واحدة في اليوم.
+ </p>
+ </div>
+ )}
+ </div>
+ </div>
+
+ {showIntakeWizard && (
+ <IntakeWizard
+ isOpen={showIntakeWizard}
+ onClose={() => {
+ setShowIntakeWizard(false);
+ setIntakeDraftRecord(loadIntakeDraft());
+ }}
+ plan={draft}
+ onNotify={onNotify}
+ />
+ )}
 
  {/* Main Profile Grid: Left Column (Basics & PIN) + Right Column (Calories & Fasting) */}
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">

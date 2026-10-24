@@ -25,6 +25,8 @@ import { savePhotoToDB, getPhotosForDate, deletePhotoFromDB, processAndCompressI
 import { getCycleInfo, getWeightVsRecentAverage, WEIGHT_FLUCTUATION_NOTE } from '../utils/cycleTracking';
 import { isSectionVisible } from '../utils/storage';
 import { LabTrackerSection } from './LabTrackerSection';
+import { WeightTrajectoryCard } from './WeightTrajectoryCard';
+import { MilestonesSection } from './MilestonesSection';
 import { HelpButton } from './FeatureHelpModal';
 import { brandCopy } from '../config/brand';
 
@@ -224,6 +226,9 @@ export const BodyTab: React.FC<BodyTabProps> = ({
  )}
  </div>
 
+ {/* Batch 2.2: الوزن المتوقع مقابل الفعلي */}
+ <WeightTrajectoryCard plan={plan} />
+
  {/* 2. Clinical Indicators (BMI & WHtR) */}
  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
  {/* BMI Card */}
@@ -418,6 +423,9 @@ export const BodyTab: React.FC<BodyTabProps> = ({
  )}
  </div>
  )}
+
+ {/* Batch 2.3: بطاقة إنجازات مختصرة */}
+ <MilestonesSection plan={plan} compact onNotify={onNotify} />
 
  {/* 3. Body Circumferences */}
  <div className="bg-[var(--app-card)] border border-purple-100 dark:border-purple-900/40 rounded-3xl p-5 transition-colors space-y-3">
