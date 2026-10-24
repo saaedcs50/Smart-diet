@@ -31,6 +31,11 @@ import {
   deleteCoachServerSession,
 } from './utils/coachServer';
 import { StorageKeys } from './utils/storageKeys';
+import {
+  loadSeasonalActivation,
+  saveSeasonalActivation,
+  reconcileSeasonalActivation,
+} from './utils/seasonalTemplate';
 import { FeatureHelpProvider } from './components/FeatureHelpModal';
 
 // High-impact Code-Splitting via React.lazy for heavy components & modals
@@ -66,7 +71,17 @@ export default function App() {
   const [currentDate, setCurrentDate] = useState<string>(getTodayDateString);
   const [plan, setPlan] = useState<PlanConfig>(loadPlanFromStorage);
   const [day, setDay] = useState<DayLog>(() => loadDayLog(getTodayDateString()));
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(loadNotificationSettings);
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => {
+    // Batch 3.3: مصالحة القالب الموسمي لحظة التحميل — تطبيق القيم الليلية أثناء
+    // الموسم، واستعادة إعدادات الماء السابقة ومسح السجل تلقائيًا عند انتهائه
+    const initial = loadNotificationSettings();
+    const activation = loadSeasonalActivation();
+    if (!activation) return initial;
+    const result = reconcileSeasonalActivation(initial, activation, getTodayDateString());
+    if (result.cleared) saveSeasonalActivation(null);
+    if (result.changed) saveNotificationSettings(result.settings);
+    return result.settings;
+  });
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem(StorageKeys.darkMode());
     if (saved !== null) {

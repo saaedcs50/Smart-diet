@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { BRAND } from '../config/brand';
 import { 
  FolderHeart, 
@@ -20,7 +20,10 @@ import {
  ChevronDown, 
  ChevronUp,
  BookmarkPlus,
- Stethoscope
+ Stethoscope,
+ Download,
+ Upload,
+ AlertTriangle
 } from 'lucide-react';
 import { PlanConfig } from '../types';
 import { 
@@ -31,6 +34,8 @@ import {
  createPresetFromPlan, 
  applyPresetToPlanDraft 
 } from '../utils/planPresets';
+import { serializePreset, parsePresetImport } from '../utils/presetIO';
+import { SCENARIO_DISCLAIMER, isScenarioPreset } from '../utils/caseScenarios';
 
 interface PresetsLibraryModalProps {
  currentDraft: PlanConfig;
@@ -52,6 +57,56 @@ export const PresetsLibraryModal: React.FC<PresetsLibraryModalProps> = ({
  const [customPresetName, setCustomPresetName] = useState('');
  const [customPresetCategory, setCustomPresetCategory] = useState<PlanPreset['category']>('custom');
  const [customPresetSummary, setCustomPresetSummary] = useState('');
+ // Batch 3.1: استيراد/تصدير JSON
+ const importFileRef = useRef<HTMLInputElement | null>(null);
+ const [importError, setImportError] = useState<string | null>(null);
+
+ const handleExportPreset = (preset: PlanPreset, e?: React.MouseEvent) => {
+ e?.stopPropagation();
+ const blob = new Blob([serializePreset(preset)], { type: 'application/json;charset=utf-8' });
+ const url = URL.createObjectURL(blob);
+ const a = document.createElement('a');
+ a.href = url;
+ a.download = `${preset.id}.json`;
+ document.body.appendChild(a);
+ a.click();
+ a.remove();
+ URL.revokeObjectURL(url);
+ onNotify(`تم تصدير قالب «${preset.name}» كملف JSON `);
+ };
+
+ const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+ const file = e.target.files?.[0];
+ e.target.value = '';
+ if (!file) return;
+ setImportError(null);
+ try {
+ const text = await file.text();
+ const result = parsePresetImport(text);
+ if (!result.ok) {
+ // قالب تالف/ناقص: يُرفض برسالة واضحة ولا يمس أي خطة أو قالب قائم
+ setImportError(result.error);
+ onNotify(`تم رفض القالب المستورد: ${result.error}`);
+ return;
+ }
+ const imported = result.preset;
+ const collides = getAllPresets().some((p) => p.id === imported.id);
+ const toSave: PlanPreset = {
+...imported,
+ id: collides? `custom_import_${Date.now()}`: imported.id,
+ isCustom: true,
+ createdAt: new Date().toISOString(),
+ };
+ if (saveCustomPreset(toSave)) {
+ reloadPresets();
+ onNotify(`تم استيراد قالب «${toSave.name}» إلى مكتبتك الخاصة `);
+ } else {
+ setImportError('حدث خطأ أثناء حفظ القالب المستورد.');
+ }
+ } catch {
+ setImportError('تعذّرت قراءة ملف القالب.');
+ }
+ };
 
  const reloadPresets = () => {
  setPresets(getAllPresets());
@@ -142,6 +197,22 @@ export const PresetsLibraryModal: React.FC<PresetsLibraryModalProps> = ({
  </div>
 
  <div className="flex items-center gap-2">
+ <input
+ ref={importFileRef}
+ type="file"
+ accept="application/json,.json"
+ className="hidden"
+ onChange={handleImportFile}
+ />
+ <button
+ onClick={() => importFileRef.current?.click()}
+ className="px-3 py-2 rounded-2xl text-xs font-black bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
+ title="استيراد قالب من ملف JSON (يُتحقق من سلامته قبل الحفظ)"
+ >
+ <Upload className="w-4 h-4" />
+ <span className="hidden sm:inline">استيراد قالب JSON</span>
+ </button>
+
  <button
  onClick={() => setShowSaveCustomModal(true)}
  className="px-3 py-2 rounded-2xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white transition-all flex items-center gap-1.5 cursor-pointer"
@@ -181,6 +252,12 @@ export const PresetsLibraryModal: React.FC<PresetsLibraryModalProps> = ({
 
  {/* Body content: Presets Cards Grid */}
  <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+ {importError && (
+ <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs font-bold flex items-start gap-2">
+ <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+ <span>تم رفض القالب المستورد — {importError} لم يتم تغيير أي خطة أو قالب قائم.</span>
+ </div>
+ )}
  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
  {filteredPresets.map((preset) => {
  return (
@@ -196,6 +273,14 @@ export const PresetsLibraryModal: React.FC<PresetsLibraryModalProps> = ({
  <span>{preset.badge}</span>
  </span>
 
+ <div className="flex items-center gap-1">
+ <button
+ onClick={(e) => handleExportPreset(preset, e)}
+ title="تصدير القالب كملف JSON"
+ className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-colors cursor-pointer"
+ >
+ <Download className="w-4 h-4" />
+ </button>
  {preset.isCustom && (
  <button
  onClick={(e) => handleDeleteCustom(preset, e)}
@@ -206,6 +291,7 @@ export const PresetsLibraryModal: React.FC<PresetsLibraryModalProps> = ({
  </button>
  )}
  </div>
+ </div>
 
  {/* Title & Description */}
  <div>
@@ -215,6 +301,12 @@ export const PresetsLibraryModal: React.FC<PresetsLibraryModalProps> = ({
  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2">
  {preset.description}
  </p>
+ {isScenarioPreset(preset) && (
+ <p className="text-[11px] font-black text-amber-700 dark:text-amber-300 mt-1.5 flex items-center gap-1">
+ <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+ {SCENARIO_DISCLAIMER}
+ </p>
+ )}
  </div>
 
  {/* Quick Stats Grid */}
@@ -337,6 +429,37 @@ export const PresetsLibraryModal: React.FC<PresetsLibraryModalProps> = ({
  {previewPreset.description}
  </p>
  </div>
+
+ {/* Batch 3.1: سيناريو الحالة — إخلاء مسؤولية + نص العميل + تنبيهات الأخصائية */}
+ {previewPreset.scenario && (
+ <div className="space-y-2.5">
+ <div className={`p-3 rounded-2xl border text-[12px] font-black flex items-center gap-1.5 ${
+ previewPreset.scenario.cautionLevel === 'high'
+? 'bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800 text-red-800 dark:text-red-200'
+: 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50 text-amber-900 dark:text-amber-200'
+ }`}>
+ <AlertTriangle className="w-4 h-4 shrink-0" />
+ <span>{SCENARIO_DISCLAIMER}</span>
+ </div>
+ <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-1">
+ <span className="font-black text-slate-800 dark:text-slate-100 block">النص الإرشادي للعميل:</span>
+ <p className="text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+ {previewPreset.scenario.clientGuidance}
+ </p>
+ </div>
+ <div className="p-3.5 rounded-2xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 space-y-1.5">
+ <span className="font-black text-rose-900 dark:text-rose-200 flex items-center gap-1.5">
+ <Stethoscope className="w-4 h-4" />
+ <span>تنبيهات للأخصائية قبل التطبيق:</span>
+ </span>
+ <ul className="list-disc list-inside space-y-1 text-slate-700 dark:text-slate-300 font-medium">
+ {previewPreset.scenario.coachAlerts.map((a, aidx) => (
+ <li key={aidx}>{a}</li>
+ ))}
+ </ul>
+ </div>
+ </div>
+ )}
 
  {/* Meals list */}
  <div className="space-y-2.5">

@@ -31,8 +31,13 @@ import {
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { PlanConfig } from '../types';
-import { BRAND, brandCopy } from '../config/brand';
+import { BRAND, brandCopy, adjustColor } from '../config/brand';
 import { generatePlanSyncCode } from '../utils/planShare';
+import {
+  PlanPdfTemplateId,
+  PLAN_PDF_TEMPLATES,
+  resolveBrandHeader,
+} from '../utils/pdfTemplates';
 
 interface PlanPDFExportModalProps {
   plan: PlanConfig;
@@ -50,6 +55,11 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
   onNotify,
 }) => {
   const [theme, setTheme] = useState<PDFTheme>('emerald');
+  // Batch 3.2: قالب التصدير (كلاسيك / هوية ملونة / مختصر صفحة واحدة)
+  const [pdfTemplate, setPdfTemplate] = useState<PlanPdfTemplateId>('classic');
+  const isBrandTemplate = pdfTemplate === 'brand';
+  const isCompact = pdfTemplate === 'compact';
+  const brandHeader = resolveBrandHeader(BRAND);
   const [isGenerating, setIsGenerating] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   
@@ -104,7 +114,7 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
   }
 
   // Theme palettes
-  const themeStyles = {
+  const classicThemeStyles = {
     emerald: {
       primary: '#059669',
       primaryDark: '#047857',
@@ -146,6 +156,20 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
       titleGrad: 'from-slate-900 to-black',
     },
   }[theme];
+
+  // Batch 3.2: قالب «هوية ملونة» يستبدل الباليتة بألوان علامة هذه النسخة (brand.json)
+  const themeStyles = isBrandTemplate
+    ? {
+        primary: brandHeader.primary,
+        primaryDark: adjustColor(brandHeader.primary, -45),
+        primaryLight: adjustColor(brandHeader.primary, 205),
+        accent: brandHeader.accent,
+        border: adjustColor(brandHeader.primary, 150),
+        badgeBg: adjustColor(brandHeader.primary, 205),
+        badgeText: adjustColor(brandHeader.primary, -60),
+        titleGrad: classicThemeStyles.titleGrad,
+      }
+    : classicThemeStyles;
 
   // 1. Direct PDF Download with jsPDF + html2canvas
   const handleDownloadDirectPDF = async () => {
@@ -364,8 +388,58 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
           
           {/* Controls Panel (Sidebar) */}
           <div className="w-full lg:w-80 2xl:w-96 p-4 sm:p-5 border-b lg:border-b-0 lg:border-l border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 overflow-y-auto space-y-5 shrink-0 text-xs">
-            
-            {/* Color Palette Selector */}
+
+            {/* Batch 3.2: Template Selector + Mini HTML Previews */}
+            <div className="space-y-2">
+              <label className="font-black text-slate-800 dark:text-slate-200 block">
+                قالب التصدير (Template):
+              </label>
+              <div className="space-y-2">
+                {PLAN_PDF_TEMPLATES.map((t) => {
+                  const barColor = t.id === 'brand' ? brandHeader.primary : t.id === 'compact' ? '#334155' : '#059669';
+                  const selected = pdfTemplate === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setPdfTemplate(t.id)}
+                      className={`w-full p-2.5 rounded-xl border flex items-center gap-3 cursor-pointer transition-all text-right ${
+                        selected
+                          ? 'border-emerald-600 bg-white dark:bg-slate-800 shadow-xs'
+                          : 'border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 hover:bg-white'
+                      }`}
+                    >
+                      {/* معاينة مصغرة HTML للقالب */}
+                      <span className="w-14 shrink-0 rounded-md border border-slate-200 dark:border-slate-700 bg-white p-1 space-y-1" aria-hidden="true">
+                        <span className="block h-1.5 rounded-full" style={{ backgroundColor: barColor }} />
+                        <span className="block h-1 rounded-full bg-slate-300" />
+                        <span className="block h-1 rounded-full bg-slate-200 w-4/5" />
+                        {t.id !== 'compact' && <span className="block h-1 rounded-full bg-slate-200 w-3/5" />}
+                        {t.id === 'brand' && (
+                          <span className="block h-1 rounded-full w-2/5" style={{ backgroundColor: brandHeader.accent }} />
+                        )}
+                      </span>
+                      <span className="min-w-0">
+                        <span className={`block text-[12px] ${selected ? 'font-black text-slate-800 dark:text-slate-100' : 'font-bold text-slate-600 dark:text-slate-300'}`}>
+                          {t.label}
+                        </span>
+                        <span className="block text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                          {t.description}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {isCompact && (
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  القالب المختصر ثابت المحتوى: الوجبات + التنبيهات الطبية الأساسية فقط، ويتجاهل مفاتيح المحتوى بالأسفل.
+                </p>
+              )}
+            </div>
+
+            {/* Color Palette Selector — يُخفى في قالب الهوية لأن الألوان من brand */}
+            {!isBrandTemplate && (
             <div className="space-y-2">
               <label className="font-black text-slate-800 dark:text-slate-200 block">
                 نمط وهوية الروشتة (Theme):
@@ -392,6 +466,7 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
                 ))}
               </div>
             </div>
+            )}
 
             {/* Customization Checkboxes */}
             <div className="space-y-2.5">
@@ -507,9 +582,9 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
               <div 
                 ref={printAreaRef}
                 id="clinical-plan-pdf-document"
-                className="bg-white text-slate-900 shadow-2xl rounded-sm p-8 sm:p-10 border border-slate-200/90 text-right dir-rtl leading-relaxed font-sans"
+                className={`bg-white text-slate-900 shadow-2xl rounded-sm border border-slate-200/90 text-right dir-rtl leading-relaxed font-sans ${isCompact ? 'p-5 sm:p-6' : 'p-8 sm:p-10'}`}
                 style={{
-                  minHeight: '297mm',
+                  minHeight: isCompact ? 'auto' : '297mm',
                   color: '#0f172a',
                   backgroundColor: '#ffffff'
                 }}
@@ -520,12 +595,20 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
                   style={{ borderColor: themeStyles.primary }}
                 >
                   <div className="flex items-center gap-3.5">
-                    <div 
-                      className="w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl text-white shadow-sm"
-                      style={{ backgroundColor: themeStyles.primary }}
-                    >
-                      ⚕️
-                    </div>
+                    {isBrandTemplate && brandHeader.showLogo ? (
+                      <img
+                        src={brandHeader.logoSrc || ''}
+                        alt={brandHeader.fallbackLabel}
+                        className="w-16 h-16 rounded-2xl object-cover shadow-sm shrink-0"
+                      />
+                    ) : (
+                      <div 
+                        className="w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl text-white shadow-sm shrink-0"
+                        style={{ backgroundColor: themeStyles.primary }}
+                      >
+                        {isBrandTemplate ? brandHeader.fallbackLabel.charAt(0) : '⚕️'}
+                      </div>
+                    )}
                     <div>
                       <h1 className="text-xl font-black tracking-tight" style={{ color: themeStyles.primaryDark }}>
                         {BRAND.clinicName || 'Smart Diet Clinic'}
@@ -568,6 +651,15 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
                 )}
 
                 {/* 2. CLIENT CLINICAL PROFILE & BIOMETRICS */}
+                {isCompact ? (
+                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 mb-5 text-xs font-bold text-slate-700 flex flex-wrap gap-x-4 gap-y-1">
+                    <span>المتدرب: <strong className="text-slate-900">{plan.clientName || 'غير محدد'}</strong></span>
+                    <span>الوزن: {weight ? `${weight} كجم` : '—'}</span>
+                    <span>الهدف: {plan.targetWeight ? `${plan.targetWeight} كجم` : '—'}</span>
+                    <span>السعرات: {plan.targetCalories || 1600} ك.س</span>
+                    <span>الماء: {plan.dailyWaterGoalMl ? `${(plan.dailyWaterGoalMl / 1000).toFixed(1)} لتر` : '3.0 لتر'}</span>
+                  </div>
+                ) : (<>
                 <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 mb-6 space-y-3">
                   <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
                     <div className="flex items-center gap-2">
@@ -616,8 +708,10 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
                   </div>
                 </div>
 
+                </>)}
+
                 {/* 3. TARGET CALORIES & MACROS DISTRIBUTION */}
-                {includeMacros && (
+                {includeMacros && !isCompact && (
                   <div className="mb-6 space-y-2">
                     <div className="flex items-center justify-between">
                       <h4 className="font-black text-xs sm:text-sm text-slate-900 flex items-center gap-1.5">
@@ -724,7 +818,7 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
                         </div>
 
                         {/* Approved Alternatives */}
-                        {includeAlternatives && meal.alternatives && meal.alternatives.length > 0 && (
+                        {includeAlternatives && !isCompact && meal.alternatives && meal.alternatives.length > 0 && (
                           <div className="p-2 rounded-xl bg-emerald-50/60 border border-emerald-200/80 text-[12px] text-emerald-900 space-y-1">
                             <div className="font-black flex items-center gap-1">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -743,7 +837,7 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
                 </div>
 
                 {/* 6. MEDICATIONS & SUPPLEMENTS PLAN */}
-                {includeMedications && (
+                {includeMedications && !isCompact && (
                   (plan.medicationPlan?.items && plan.medicationPlan.items.length > 0) ||
                   (plan.supplements && plan.supplements.length > 0)
                 ) && (
@@ -786,7 +880,7 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
                 )}
 
                 {/* 7. DAILY HABITS & INSTRUCTIONS CHECKLIST */}
-                {includeHabits && plan.checklist && plan.checklist.length > 0 && (
+                {includeHabits && !isCompact && plan.checklist && plan.checklist.length > 0 && (
                   <div className="mb-6 space-y-2 page-break-inside-avoid text-xs">
                     <h4 className="font-black text-slate-900 flex items-center gap-1.5">
                       <Activity className="w-4 h-4 text-emerald-600" />
@@ -805,7 +899,7 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
                 )}
 
                 {/* 8. DOCTOR CLINICAL TIPS */}
-                {includeTips && plan.tips && plan.tips.length > 0 && (
+                {includeTips && !isCompact && plan.tips && plan.tips.length > 0 && (
                   <div className="mb-6 p-4 rounded-2xl bg-amber-50/70 border border-amber-200 text-xs space-y-2 page-break-inside-avoid">
                     <h4 className="font-black text-amber-950 flex items-center gap-1.5">
                       <Lightbulb className="w-4 h-4 text-amber-600" />
@@ -825,7 +919,7 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
                   style={{ borderColor: themeStyles.border }}
                 >
                   {/* Stamp & Signature */}
-                  {includeStamp && (
+                  {includeStamp && !isCompact && (
                     <div className="flex items-center gap-3">
                       <div 
                         className="w-20 h-20 rounded-full border-2 border-dashed flex flex-col items-center justify-center p-1 text-center"
@@ -850,7 +944,7 @@ export const PlanPDFExportModal: React.FC<PlanPDFExportModalProps> = ({
                   )}
 
                   {/* App Sync Code */}
-                  {includeSyncCode && (
+                  {includeSyncCode && !isCompact && (
                     <div className="text-left bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-[12px] max-w-[260px]">
                       <div className="flex items-center gap-1 text-slate-700 font-black mb-0.5">
                         <QrCode className="w-3.5 h-3.5 text-emerald-600" />

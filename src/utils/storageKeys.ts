@@ -43,6 +43,8 @@ export const StorageKeys = {
   reportSharedAt: () => ns('report_shared_at'),
   /** Batch 2.5: مسودة خطة الاستبيان — مستقلة تمامًا عن الخطة النشطة */
   intakeDraft: () => ns('intake_draft'),
+  /** Batch 3.3: سجل تفعيل القالب الموسمي (يشمل لقطة إعدادات الماء قبل التفعيل) */
+  seasonalActivation: () => ns('seasonal_activation'),
   darkMode: () => ns('dark_mode'),
   onboardingSeen: () => ns('onboarding_seen'),
   coachOnboardingSeen: () => ns('coach_onboarding_seen'),

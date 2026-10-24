@@ -1,5 +1,6 @@
 import { PlanConfig, MealItem, CheckItem, SupplementItem, SectionVisibility } from '../types';
 import { BRAND } from '../config/brand';
+import { CASE_SCENARIOS, RAMADAN_SCENARIO } from './caseScenarios';
 
 export interface PlanPreset {
  id: string;
@@ -20,6 +21,12 @@ export interface PlanPreset {
  supplementsCount: number;
  isCustom?: boolean;
  createdAt?: string;
+ /** Batch 3.1: بيانات سيناريو الحالة (نص العميل + تنبيهات الأخصائية) — اختيارية للقوالب العامة */
+ scenario?: {
+ clientGuidance: string;
+ coachAlerts: string[];
+ cautionLevel?: 'standard' | 'high';
+ };
  planData: Omit<PlanConfig, 'clientName' | 'startWeight' | 'targetWeight' | 'heightCm' | 'targetWaist' | 'adminPin'>;
 }
 
@@ -1094,7 +1101,13 @@ export const BUILT_IN_PRESETS: PlanPreset[] = [
  PRESET_CLINICAL_KETO,
  PRESET_MEDITERRANEAN_BALANCED,
  PRESET_HEALTHY_MAINTENANCE,
-];
+ // Batch 3.1/3.3: سيناريوهات الحالات + القالب الموسمي (نفس الآلية)
+...CASE_SCENARIOS,
+ RAMADAN_SCENARIO,
+];;
+
+/** كل القوالب المرجعية (مدمجة + سيناريوهات) بلا القوالب المخصصة المحلية */
+export const PLAN_TEMPLATES: PlanPreset[] = BUILT_IN_PRESETS;
 
 const CUSTOM_PRESETS_STORAGE_KEY = 'nt_custom_plan_presets_v1';
 
@@ -1189,6 +1202,7 @@ export function createPresetFromPlan(
  symptomsList: JSON.parse(JSON.stringify(plan.symptomsList || [])),
  medicalConditions: plan.medicalConditions? JSON.parse(JSON.stringify(plan.medicalConditions)): undefined,
  medicationPlan: plan.medicationPlan? JSON.parse(JSON.stringify(plan.medicationPlan)): undefined,
+ fastingPlan: plan.fastingPlan? JSON.parse(JSON.stringify(plan.fastingPlan)): undefined,
  },
  };
 }
@@ -1215,5 +1229,7 @@ export function applyPresetToPlanDraft(currentDraft: PlanConfig, preset: PlanPre
  symptomsList: JSON.parse(JSON.stringify(p.symptomsList || [])),
 ...(p.medicalConditions? { medicalConditions: JSON.parse(JSON.stringify(p.medicalConditions)) }: {}),
 ...(p.medicationPlan? { medicationPlan: JSON.parse(JSON.stringify(p.medicationPlan)) }: {}),
+ // Batch 3.3: خطة الصيام تُنسخ عند وجودها في القالب (كانت تسقط صامتة قبل ذلك، فيُفعَّل قسم الصيام ومؤقته فعليًا)
+...(p.fastingPlan? { fastingPlan: JSON.parse(JSON.stringify(p.fastingPlan)) }: {}),
  };
 }
