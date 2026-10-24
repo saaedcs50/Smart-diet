@@ -58,6 +58,19 @@ import {
 } from 'lucide-react';
 import { MealItem, CheckItem, SupplementItem, PlanConfig, SectionVisibility, WeeklyFocusType } from '../types';
 import { IntakeDraftRecord, loadIntakeDraft, clearIntakeDraft } from '../utils/intake';
+import { loadNotificationSettings, saveNotificationSettings } from '../utils/notifications';
+import { RAMADAN_SCENARIO } from '../utils/caseScenarios';
+import {
+ SeasonalActivation,
+ loadSeasonalActivation,
+ saveSeasonalActivation,
+ buildSeasonalActivation,
+ applySeasonalWaterReminders,
+ restoreSeasonalWaterReminders,
+ getSeasonalPhase,
+ seasonalPhaseNotice,
+ isValidSeasonRange,
+} from '../utils/seasonalTemplate';
 import { getWeekStartISO } from '../utils/shoppingList';
 import { WEEKLY_FOCUS_TYPE_LABELS } from '../utils/weeklyFocus';
 import { IntakeWizard } from './IntakeWizard';
@@ -243,6 +256,39 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  setIntakeDraftRecord(null);
  setIntakeImported(false);
  onNotify('تم حذف مسودة الاستبيان دون أي أثر على الخطة الحالية');
+ };
+
+ // Batch 3.3: القالب الموسمي (رمضان) — تفعيل بتاريخ يدوي + استعادة إعدادات الماء
+ const [seasonalActivation, setSeasonalActivation] = useState<SeasonalActivation | null>(() => loadSeasonalActivation());
+ const [seasonStart, setSeasonStart] = useState('');
+ const [seasonEnd, setSeasonEnd] = useState('');
+ const seasonalPhase = seasonalActivation ? getSeasonalPhase(seasonalActivation, getTodayDateString()) : null;
+
+ const handleActivateSeasonal = () => {
+ if (!isValidSeasonRange(seasonStart, seasonEnd)) {
+ onNotify('يرجى ضبط تاريخ بداية ونهاية صحيحين للموسم (البداية قبل النهاية)');
+ return;
+ }
+ const currentSettings = loadNotificationSettings();
+ // لقطة إعدادات الماء الحالية قبل أي تغيير — هي ما يُستعاد عند الانتهاء
+ const activation = buildSeasonalActivation(RAMADAN_SCENARIO.id, seasonStart, seasonEnd, currentSettings);
+ saveSeasonalActivation(activation);
+ setSeasonalActivation(activation);
+ saveNotificationSettings(applySeasonalWaterReminders(currentSettings));
+ const updatedDraft = applyPresetToPlanDraft(draft, RAMADAN_SCENARIO);
+ setDraft(updatedDraft);
+ onSavePlan(updatedDraft);
+ onNotify('تم تفعيل قالب رمضان الموسمي: حُفظت الخطة بالوجبات الموسمية، وطُبّقت تنبيهات الماء الليلية (ستُستعاد إعداداتك السابقة تلقائيًا عند انتهاء الموسم)');
+ };
+
+ const handleDeactivateSeasonal = () => {
+ if (seasonalActivation) {
+ const currentSettings = loadNotificationSettings();
+ saveNotificationSettings(restoreSeasonalWaterReminders(currentSettings, seasonalActivation));
+ saveSeasonalActivation(null);
+ setSeasonalActivation(null);
+ }
+ onNotify('تم إلغاء القالب الموسمي واستعادة إعدادات الماء السابقة — راجِع الخطة وعدّل الوجبات للموسم العادي');
  };
 
  // Medication Catalog state
@@ -1272,6 +1318,67 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  </div>
  )}
  </div>
+ </div>
+
+ {/* Batch 3.3: القالب الموسمي (رمضان) */}
+ <div className="p-4 sm:p-5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 space-y-3">
+ <h4 className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+ <Moon className="w-4 h-4 text-indigo-600" />
+ القالب الموسمي — رمضان (قالب فوق مكتبة السيناريوهات)
+ </h4>
+ {seasonalActivation ? (
+ <div className="space-y-3">
+ <p className="text-[12px] sm:text-xs font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
+ القالب مفعّل من <strong>{seasonalActivation.startDate}</strong> إلى <strong>{seasonalActivation.endDate}</strong>.
+ تنبيهات الماء الليلية مطبقة حاليًا، وإعدادات الماء السابقة محفوظة وستُستعاد تلقائيًا عند انتهاء الموسم أو الإلغاء.
+ </p>
+ {seasonalPhase && seasonalPhase !== 'active' && (
+ <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-black text-center">
+ {seasonalPhaseNotice(seasonalPhase)}
+ </div>
+ )}
+ <button
+ type="button"
+ onClick={handleDeactivateSeasonal}
+ className="min-h-[40px] px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs font-black transition-colors cursor-pointer"
+ >
+ إلغاء التفعيل واستعادة الإعدادات
+ </button>
+ </div>
+ ) : (
+ <div className="space-y-3">
+ <p className="text-[12px] sm:text-xs font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
+ التفعيل يطبق سيناريو رمضان على خطة العميل ويحفظها فورًا (إفطار/سناك ليلي/سحور + قسم الصيام)، ويضبط تنبيهات الماء لليلًا أثناء الموسم فقط — إعدادات الماء الحالية تُحفظ وتُستعاد كاملة عند الانتهاء. التواريخ يدوية (لا تقويم هجري تلقائي).
+ </p>
+ <div className="grid grid-cols-2 gap-3">
+ <div>
+ <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">بداية الموسم</label>
+ <input
+ type="date"
+ value={seasonStart}
+ onChange={(e) => setSeasonStart(e.target.value)}
+ className="w-full text-xs sm:text-sm font-bold min-h-[40px] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+ />
+ </div>
+ <div>
+ <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5">نهاية الموسم</label>
+ <input
+ type="date"
+ value={seasonEnd}
+ onChange={(e) => setSeasonEnd(e.target.value)}
+ className="w-full text-xs sm:text-sm font-bold min-h-[40px] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+ />
+ </div>
+ </div>
+ <button
+ type="button"
+ onClick={handleActivateSeasonal}
+ className="min-h-[40px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-colors cursor-pointer"
+ >
+ تفعيل قالب رمضان الموسمي
+ </button>
+ </div>
+ )}
  </div>
 
  {showIntakeWizard && (
