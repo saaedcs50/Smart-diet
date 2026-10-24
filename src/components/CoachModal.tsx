@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { BRAND, brandCopy } from '../config/brand';
 import { BrandLogo } from './BrandLogo';
 import { StorageKeys } from '../utils/storageKeys';
@@ -57,7 +57,8 @@ import {
  Printer
 } from 'lucide-react';
 import { MealItem, CheckItem, SupplementItem, PlanConfig, SectionVisibility } from '../types';
-import { DEFAULT_PLAN, DEFAULT_VISIBLE_SECTIONS, exportFullBackupJSON, importFullBackupJSON, isSectionVisible, loadDayLog, getTodayDateString } from '../utils/storage';
+import { DEFAULT_PLAN, DEFAULT_VISIBLE_SECTIONS, exportFullBackupJSON, importFullBackupJSON, isSectionVisible, loadDayLog, getTodayDateString, getAllStoredDayLogs, parseLocalDate } from '../utils/storage';
+import { findLastActivityDate } from '../utils/welcomeBack';
 import { calculateDayScore } from '../utils/calculations';
 import { generateWhatsAppPlanMessage, generatePlanReadableText, generatePlanSyncCode } from '../utils/planShare';
 // تحميل كسول للحاسبات الثقيلة — تُحمَّل فقط عند فتحها
@@ -122,6 +123,11 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  const [pagePinInput, setPagePinInput] = useState('');
  const [pagePinError, setPagePinError] = useState<string | null>(null);
  const [isPagePinSubmitting, setIsPagePinSubmitting] = useState(false);
+ // Batch 1.5: آخر نشاط للعميل من السجلات المحلية على هذا الجهاز (بلا سحابة)
+ const lastActivityDate = useMemo(() => findLastActivityDate(getAllStoredDayLogs()), []);
+ const lastActivityLabel = lastActivityDate
+ ? parseLocalDate(lastActivityDate).toLocaleDateString('ar-EG', { dateStyle: 'medium' })
+ : null;
  const [lockoutSeconds, setLockoutSeconds] = useState<number>(() => getLockoutRemainingSeconds());
 
  useEffect(() => {
@@ -721,6 +727,9 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  </div>
  <p className="text-[12px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">
  تخصيص الخطة والسعرات والبدائل الإكلينيكية وإدارة الحالات الطبية
+ </p>
+ <p className="text-[12px] sm:text-xs text-teal-600 dark:text-teal-400 font-bold truncate">
+ آخر نشاط للعميل: {lastActivityLabel ?? 'لا يوجد نشاط مسجل بعد'}
  </p>
  </div>
  </div>

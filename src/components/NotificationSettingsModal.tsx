@@ -35,6 +35,7 @@ import {
  CheckSquare,
  Sunrise,
  Sliders,
+ Flame,
 } from 'lucide-react';
 
 interface Props {
@@ -76,6 +77,7 @@ export const NotificationSettingsModal: React.FC<Props> = ({
  water: false,
  sleep: false,
  habits: false,
+ streak: false,
  fasting: false,
  weight: false,
  workout: false,
@@ -166,6 +168,10 @@ export const NotificationSettingsModal: React.FC<Props> = ({
 
  if (settings.nightReviewReminder?.enabled) {
  tags.push({ label: 'المراجعة الليلية', color: 'bg-purple-950 text-purple-300 border-purple-700' });
+ }
+
+ if (settings.streakReminder?.enabled) {
+ tags.push({ label: 'السلسلة في خطر', color: 'bg-orange-950 text-orange-300 border-orange-700' });
  }
 
  return tags;
@@ -1079,6 +1085,72 @@ export const NotificationSettingsModal: React.FC<Props> = ({
  })
  }
  className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-amber-400 font-mono font-bold focus:border-amber-500 focus:outline-none"
+ />
+ </div>
+ </div>
+ )}
+ </div>
+ </div>
+
+ {/* ACCORDION 5.5: Streak At Risk (Batch 1.4) */}
+ <div className="pt-3">
+ <div className="border border-slate-700/80 rounded-2xl overflow-hidden bg-slate-800/40">
+ <button
+ type="button"
+ onClick={() => toggleSection('streak')}
+ className="w-full p-3.5 flex items-center justify-between bg-slate-800/80 hover:bg-slate-750 transition-colors text-right cursor-pointer"
+ >
+ <div className="flex items-center gap-2.5">
+ <div className="w-8 h-8 rounded-xl flex items-center justify-center text-orange-400 shrink-0">
+ <Flame className="w-4 h-4" />
+ </div>
+ <div>
+ <h4 className="font-bold text-sm text-orange-300">تنبيه «السلسلة في خطر» 🔥</h4>
+ <p className="text-[12px] text-slate-400">
+ {settings.streakReminder?.enabled? `يومياً (${settings.streakReminder.time || '20:30'}) عند غياب أي نشاط`: 'معطل'}
+ </p>
+ </div>
+ </div>
+ <div className="flex items-center gap-2">
+ <label className="relative inline-flex items-center cursor-pointer" onClick={(e) => e.stopPropagation()}>
+ <input
+ type="checkbox"
+ checked={settings.streakReminder?.enabled || false}
+ onChange={(e) =>
+ setSettings({
+...settings,
+ streakReminder: { enabled: e.target.checked, time: settings.streakReminder?.time || '20:30' },
+ })
+ }
+ className="sr-only peer"
+ />
+ <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:-translate-x-4 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-500"></div>
+ </label>
+ {openSections.streak? <ChevronUp className="w-4 h-4 text-slate-400" />: <ChevronDown className="w-4 h-4 text-slate-400" />}
+ </div>
+ </button>
+
+ {openSections.streak && (
+ <div className="p-3.5 space-y-2.5 border-t border-slate-700/60 animate-in fade-in text-xs">
+ <p className="text-slate-300">
+ تذكير مسائي ودي يصلك فقط لو سلسلة التزامك 3 أيام أو أكثر ولم تسجل أي نشاط اليوم — عشان تحافظ عليها قبل ما تنكسر.
+ </p>
+
+ <div className="bg-slate-900/90 border border-slate-700/80 rounded-xl p-2.5 flex items-center justify-between gap-2">
+ <div>
+ <span className="font-bold text-slate-200 block">وقت التنبيه المسائي</span>
+ <span className="text-[12px] text-slate-400">الافتراضي 20:30 — قابل للإيقاف بالكامل من المفتاح بالأعلى</span>
+ </div>
+ <input
+ type="time"
+ value={settings.streakReminder?.time || '20:30'}
+ onChange={(e) =>
+ setSettings({
+...settings,
+ streakReminder: { enabled: settings.streakReminder?.enabled ?? true, time: e.target.value },
+ })
+ }
+ className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-orange-400 font-mono font-bold focus:border-orange-500 focus:outline-none"
  />
  </div>
  </div>

@@ -2,6 +2,8 @@
 import { getTodayDateString, loadPlanFromStorage, loadDayLog, getActiveFastingSession } from './storage';
 import { PlanConfig, DayLog, MedicationSlot, MedicationItem } from '../types';
 import { getAllScheduledDoses, WITH_FOOD_LABELS } from './medications';
+import { calculateStreak } from './calculations';
+import { shouldFireStreakReminder, buildStreakReminderMessage } from './streakReminder';
 import { BRAND } from '../config/brand';
 import { StorageKeys } from './storageKeys';
 
@@ -42,6 +44,11 @@ export interface FastingReminderSettings {
  notifyOnComplete: boolean;
 }
 
+export interface StreakReminderSettings {
+ enabled: boolean;
+ time: string; // HH:mm (default 20:30) — Batch 1.4: تنبيه «السلسلة في خطر»
+}
+
 export interface NotificationSettings {
  enabled: boolean;
  sound: boolean;
@@ -61,6 +68,7 @@ export interface NotificationSettings {
  habitsReminder: HabitsReminderSettings;
  weeklyWeightReminder: WeeklyWeightReminderSettings;
  fastingReminders: FastingReminderSettings;
+ streakReminder: StreakReminderSettings;
  workoutReminder: {
  enabled: boolean;
  time: string; // HH:mm
@@ -131,6 +139,10 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
  fastingReminders: {
  enabled: false,
  notifyOnComplete: true,
+ },
+ streakReminder: {
+ enabled: true,
+ time: '20:30',
  },
  workoutReminder: {
  enabled: false,
@@ -292,6 +304,10 @@ export function loadNotificationSettings(): NotificationSettings {
  fastingReminders: {
 ...DEFAULT_NOTIFICATION_SETTINGS.fastingReminders,
 ...(parsed.fastingReminders || {}),
+ },
+ streakReminder: {
+...DEFAULT_NOTIFICATION_SETTINGS.streakReminder,
+...(parsed.streakReminder || {}),
  },
  workoutReminder: {
 ...DEFAULT_NOTIFICATION_SETTINGS.workoutReminder,
@@ -888,6 +904,34 @@ export function checkAndTriggerReminders(
  settings.sound,
  'sleep'
  );
+ }
+ }
+
+ // 10. Streak At Risk (Batch 1.4) — سلسلة ≥ 3 أيام مهددة ولا نشاط اليوم
+ if (settings.streakReminder?.enabled && settings.streakReminder.time === currentTimeStr && plan && day) {
+ const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+ const streakUntilYesterday = calculateStreak(getTodayDateString(yesterday), plan);
+ const fire = shouldFireStreakReminder({
+ masterEnabled: settings.enabled,
+ reminderEnabled: settings.streakReminder.enabled,
+ reminderTime: settings.streakReminder.time,
+ currentTime: currentTimeStr,
+ streak: streakUntilYesterday,
+ day,
+ permission: getNotificationPermission(),
+ });
+ if (fire) {
+ const key = `streak_at_risk_${todayDateStr}`;
+ if (!firedKeys[key]) {
+ markKeyFired(key);
+ sendLocalNotification(
+ 'سلسلتك في خطر 🔥',
+ buildStreakReminderMessage(streakUntilYesterday),
+ 'streak-at-risk',
+ settings.sound,
+ 'meal'
+ );
+ }
  }
  }
 }
