@@ -34,7 +34,7 @@ export const WeekStripCalendar: React.FC<WeekStripCalendarProps> = ({
     const saturday = new Date(curr);
     saturday.setDate(curr.getDate() - diffToSaturday);
 
-    const days = [];
+    const days: { dateStr: string; dayNumber: number; dayName: string; isToday: boolean; isSelected: boolean }[] = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(saturday);
       d.setDate(saturday.getDate() + i);

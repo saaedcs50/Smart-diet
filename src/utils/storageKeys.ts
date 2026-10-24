@@ -38,6 +38,8 @@ export const StorageKeys = {
   coachUnlocked: () => ns('coach_unlocked'),
   /** SHA-256 لهاش PIN بعد أول دخول ناجح عبر السيرفر: ليس الرقم نفسه */
   coachPinHash: () => ns('coach_pin_hash'),
+  /** ملح عشوائي لكل جهاز يُخلط مع هاش الـ PIN (v2) */
+  coachPinSalt: () => ns('coach_pin_salt'),
   migratedFlag: () => ns('migrated_v1'),
   photoDbName: () => `sd_${brandStorageSlug()}_photos_db`,
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BRAND, brandCopy } from '../config/brand';
 import { BrandLogo } from './BrandLogo';
 import { StorageKeys } from '../utils/storageKeys';
@@ -60,8 +60,13 @@ import { MealItem, CheckItem, SupplementItem, PlanConfig, SectionVisibility } fr
 import { DEFAULT_PLAN, DEFAULT_VISIBLE_SECTIONS, exportFullBackupJSON, importFullBackupJSON, isSectionVisible, loadDayLog, getTodayDateString } from '../utils/storage';
 import { calculateDayScore } from '../utils/calculations';
 import { generateWhatsAppPlanMessage, generatePlanReadableText, generatePlanSyncCode } from '../utils/planShare';
-import { ClinicalCalculatorSuiteModal } from './ClinicalCalculatorSuiteModal';
-import { BMRCalculatorModal } from './BMRCalculatorModal';
+// تحميل كسول للحاسبات الثقيلة — تُحمَّل فقط عند فتحها
+const ClinicalCalculatorSuiteModal = lazy(() =>
+  import('./ClinicalCalculatorSuiteModal').then((m) => ({ default: m.ClinicalCalculatorSuiteModal }))
+);
+const BMRCalculatorModal = lazy(() =>
+  import('./BMRCalculatorModal').then((m) => ({ default: m.BMRCalculatorModal }))
+);
 import { PresetsLibraryModal } from './PresetsLibraryModal';
 import { MedicalConditionsEditor } from './MedicalConditionsEditor';
 import { MedicationsManager } from './MedicationsManager';
@@ -71,7 +76,10 @@ import { MealExchangePlanner } from './MealExchangePlanner';
 import { CoachOnboardingModal } from './CoachOnboardingModal';
 import { MedicationCatalogModal } from './MedicationCatalogModal';
 import { MedicationInputRow } from './MedicationInputRow';
-import { PlanPDFExportModal } from './PlanPDFExportModal';
+// تحميل كسول: مكتبات PDF الثقيلة (jspdf/html2canvas) تُحمَّل فقط عند فتح تصدير PDF
+const PlanPDFExportModal = lazy(() =>
+  import('./PlanPDFExportModal').then((m) => ({ default: m.PlanPDFExportModal }))
+);
 import { 
   autoConvertMealTextToFasting, 
   detectFastingSubstitutions, 
@@ -2952,6 +2960,7 @@ export const CoachModal: React.FC<CoachModalProps> = ({
 
  {/* BMR Calculator Modal (معادلة سمر + معادلة خلود ) */}
  {showBMRCalc && (
+ <Suspense fallback={null}>
  <BMRCalculatorModal
  initialWeight={draft.startWeight || 70}
  initialHeight={draft.heightCm || 170}
@@ -2972,10 +2981,12 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  }}
  onClose={() => setShowBMRCalc(false)}
  />
+ </Suspense>
  )}
 
  {/* Clinical Calculator Suite Modal */}
  {showClinicalSuite && (
+ <Suspense fallback={null}>
  <ClinicalCalculatorSuiteModal
  initialWeight={draft.startWeight || 80}
  initialHeight={draft.heightCm || 175}
@@ -2994,6 +3005,7 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  }}
  onClose={() => setShowClinicalSuite(false)}
  />
+ </Suspense>
  )}
 
  {/* Doctor Onboarding Interactive Guide Modal */}
@@ -3208,13 +3220,17 @@ export const CoachModal: React.FC<CoachModalProps> = ({
  alreadySelectedNames={(draft.supplements || []).map((s) => s.name)}
  />
 
- {/* Plan PDF Export Modal */}
- <PlanPDFExportModal
- plan={draft}
- isOpen={showPDFExportModal}
- onClose={() => setShowPDFExportModal(false)}
- onNotify={onNotify}
- />
+ {/* Plan PDF Export Modal — lazy (jspdf/html2canvas) */}
+ {showPDFExportModal && (
+   <Suspense fallback={null}>
+     <PlanPDFExportModal
+       plan={draft}
+       isOpen={showPDFExportModal}
+       onClose={() => setShowPDFExportModal(false)}
+       onNotify={onNotify}
+     />
+   </Suspense>
+ )}
  </div>
  );
 };

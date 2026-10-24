@@ -13,6 +13,7 @@ import {
   User,
   ShieldCheck,
   ClipboardPaste,
+  Lock,
 } from 'lucide-react';
 import { PlanConfig } from '../types';
 import { extractPlanFromText } from '../utils/planShare';
@@ -22,6 +23,11 @@ import {
   downloadJsonFile,
   getBackupSummary,
 } from '../utils/storage';
+import {
+  encryptBackupJSON,
+  decryptBackupJSON,
+  isEncryptedBackup,
+} from '../utils/backupCrypto';
 import { BottomSheetModal } from './BottomSheetModal';
 
 interface BackupRestoreModalProps {
@@ -50,6 +56,13 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
     dayCount: number;
     exportedAt: string;
   } | null>(null);
+  // تشفير اختياري بكلمة مرور
+  const [exportPassphrase, setExportPassphrase] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [pendingEncryptedText, setPendingEncryptedText] = useState<string | null>(null);
+  const [importPassphrase, setImportPassphrase] = useState('');
+  const [decryptError, setDecryptError] = useState<string | null>(null);
+  const [decrypting, setDecrypting] = useState(false);
 
   const backupSummary = useMemo(() => {
     return getBackupSummary();
@@ -61,12 +74,29 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
     return extractPlanFromText(pasteText);
   }, [pasteText]);
 
-  const handleExportDownload = () => {
-    const jsonStr = exportFullBackupJSON();
+  const handleExportDownload = async () => {
     const dateStr = new Date().toISOString().split('T')[0];
     const filename = `nutrition-backup-${backupSummary.clientName.replace(/\s+/g, '_')}-${dateStr}.json`;
-    downloadJsonFile(filename, jsonStr);
-    onNotify('تم تنزيل ملف النسخة الاحتياطية بنجاح 💾');
+    const pass = exportPassphrase.trim();
+    if (pass && pass.length < 6) {
+      onNotify('كلمة مرور التشفير يجب أن تكون 6 أحرف على الأقل — أو اتركها فارغة لنسخة غير مشفرة');
+      return;
+    }
+    setExporting(true);
+    try {
+      const plain = exportFullBackupJSON();
+      const out = pass ? await encryptBackupJSON(plain, pass) : plain;
+      downloadJsonFile(filename, out);
+      onNotify(
+        pass
+          ? 'تم تنزيل نسخة احتياطية مشفرة 🔐 — ستحتاج كلمة المرور عند الاسترجاع'
+          : 'تم تنزيل ملف النسخة الاحتياطية بنجاح 💾'
+      );
+    } catch {
+      onNotify('تعذر إنشاء النسخة الاحتياطية');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleCopyBackup = async () => {
@@ -81,44 +111,70 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
     }
   };
 
+  const processImportedText = (text: string) => {
+    try {
+      const parsed = JSON.parse(text);
+
+      // Check if full backup format
+      if (parsed.dailyLogs || parsed.plan) {
+        const clientName = parsed.plan?.clientName || 'غير محدد';
+        const dayCount = parsed.dailyLogs ? Object.keys(parsed.dailyLogs).length : 0;
+        const exportedAt = parsed.exportedAt
+          ? new Date(parsed.exportedAt).toLocaleDateString('ar-EG')
+          : 'غير معروف';
+
+        setPendingBackupData({
+          rawJson: text,
+          clientName,
+          dayCount,
+          exportedAt,
+        });
+      } else {
+        // Check if plan text/json
+        const planData = extractPlanFromText(text);
+        if (planData && onImportPlan) {
+          onImportPlan(planData);
+          onNotify('تم استيراد الخطة الغذائية من الملف بنجاح');
+          onClose();
+        } else {
+          alert('الملف لا يحتوي على نسخة احتياطية صالحة');
+        }
+      }
+    } catch (err) {
+      alert('تعذر قراءة الملف، تأكد من أنه ملف JSON سليم');
+    }
+  };
+
+  const handleDecryptPending = async () => {
+    if (!pendingEncryptedText) return;
+    setDecrypting(true);
+    setDecryptError(null);
+    try {
+      const plain = await decryptBackupJSON(pendingEncryptedText, importPassphrase);
+      setPendingEncryptedText(null);
+      setImportPassphrase('');
+      processImportedText(plain);
+    } catch (err) {
+      setDecryptError(err instanceof Error ? err.message : 'تعذر فك التشفير');
+    } finally {
+      setDecrypting(false);
+    }
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      try {
-        const text = event.target?.result as string;
-        const parsed = JSON.parse(text);
-
-        // Check if full backup format
-        if (parsed.dailyLogs || parsed.plan) {
-          const clientName = parsed.plan?.clientName || 'غير محدد';
-          const dayCount = parsed.dailyLogs ? Object.keys(parsed.dailyLogs).length : 0;
-          const exportedAt = parsed.exportedAt
-            ? new Date(parsed.exportedAt).toLocaleDateString('ar-EG')
-            : 'غير معروف';
-
-          setPendingBackupData({
-            rawJson: text,
-            clientName,
-            dayCount,
-            exportedAt,
-          });
-        } else {
-          // Check if plan text/json
-          const planData = extractPlanFromText(text);
-          if (planData && onImportPlan) {
-            onImportPlan(planData);
-            onNotify('تم استيراد الخطة الغذائية من الملف بنجاح');
-            onClose();
-          } else {
-            alert('الملف لا يحتوي على نسخة احتياطية صالحة');
-          }
-        }
-      } catch (err) {
-        alert('تعذر قراءة الملف، تأكد من أنه ملف JSON سليم');
+      const text = event.target?.result as string;
+      if (isEncryptedBackup(text)) {
+        setDecryptError(null);
+        setImportPassphrase('');
+        setPendingEncryptedText(text);
+        return;
       }
+      processImportedText(text);
     };
     reader.readAsText(file);
     e.target.value = '';
@@ -263,15 +319,36 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
               </p>
             </div>
 
+            {/* Optional encryption */}
+            <div className="p-3.5 rounded-2xl bg-[var(--app-card-muted)] border border-[var(--app-border)] space-y-2">
+              <label className="text-xs font-bold text-[var(--app-text-primary)] flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5" />
+                تشفير بكلمة مرور (اختياري)
+              </label>
+              <input
+                type="password"
+                value={exportPassphrase}
+                onChange={(e) => setExportPassphrase(e.target.value)}
+                placeholder="اتركها فارغة لنسخة غير مشفرة — 6 أحرف على الأقل عند التشفير"
+                autoComplete="new-password"
+                className="w-full p-2.5 text-xs rounded-xl border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text-primary)] focus:outline-hidden focus:ring-2 focus:ring-[var(--app-hero)]"
+              />
+              <p className="text-[11px] text-[var(--app-text-secondary)] leading-relaxed">
+                النسخة المشفرة (AES-GCM) لا يمكن استرجاعها بدون كلمة المرور — لا توجد طريقة لاستعادتها إن نُسيت.
+                ملحوظة: زر «نسخ للحافظة» ينسخ دائمًا نسخة غير مشفرة.
+              </p>
+            </div>
+
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-2.5">
               <button
                 type="button"
                 onClick={handleExportDownload}
-                className="flex-1 py-3 px-4 rounded-2xl bg-[var(--app-hero)] hover:bg-[var(--app-hero-hover)] text-white font-extrabold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                disabled={exporting}
+                className="flex-1 py-3 px-4 rounded-2xl bg-[var(--app-hero)] hover:bg-[var(--app-hero-hover)] disabled:opacity-50 text-white font-extrabold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
               >
                 <Download className="w-4 h-4" />
-                <span>تحميل ملف النسخة الاحتياطية (.json)</span>
+                <span>{exporting ? 'جارٍ تجهيز النسخة…' : 'تحميل ملف النسخة الاحتياطية (.json)'}</span>
               </button>
 
               <button
@@ -289,7 +366,50 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
         {/* Tab 2: Import Backup JSON */}
         {activeTab === 'import' && (
           <div className="space-y-4 animate-in fade-in duration-150">
-            {!pendingBackupData ? (
+            {pendingEncryptedText ? (
+              <div className="p-4 rounded-2xl bg-[var(--app-card-muted)] border border-[var(--app-border)] space-y-3 animate-in zoom-in-95">
+                <div className="flex items-center gap-2 font-bold text-sm text-[var(--app-text-primary)]">
+                  <Lock className="w-5 h-5 text-[var(--app-hero)]" />
+                  <span>هذه النسخة الاحتياطية مشفرة</span>
+                </div>
+                <p className="text-xs text-[var(--app-text-secondary)] leading-relaxed">
+                  أدخل كلمة المرور التي استُخدمت عند تصدير النسخة لفك تشفيرها ومراجعتها قبل الاسترجاع.
+                </p>
+                <input
+                  type="password"
+                  value={importPassphrase}
+                  onChange={(e) => setImportPassphrase(e.target.value)}
+                  placeholder="كلمة مرور النسخة الاحتياطية"
+                  autoComplete="off"
+                  className="w-full p-2.5 text-xs rounded-xl border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text-primary)] focus:outline-hidden focus:ring-2 focus:ring-[var(--app-hero)]"
+                />
+                {decryptError && (
+                  <p className="text-xs text-rose-600 dark:text-rose-400 font-bold">{decryptError}</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDecryptPending}
+                    disabled={decrypting || !importPassphrase}
+                    className="flex-1 py-2.5 rounded-xl bg-[var(--app-hero)] hover:bg-[var(--app-hero-hover)] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Lock className="w-4 h-4" />
+                    {decrypting ? 'جارٍ فك التشفير…' : 'فك التشفير والمتابعة'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingEncryptedText(null);
+                      setImportPassphrase('');
+                      setDecryptError(null);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-[var(--app-card)] border border-[var(--app-border)] text-xs text-[var(--app-text-secondary)] hover:text-[var(--app-text-primary)] cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            ) : !pendingBackupData ? (
               <div className="space-y-3">
                 <label className="border-2 border-dashed border-[var(--app-border)] hover:border-[var(--app-hero)] rounded-3xl p-6 sm:p-8 flex flex-col items-center justify-center gap-3 cursor-pointer bg-[var(--app-card-muted)]/50 hover:bg-[var(--app-card-muted)] transition-all text-center group">
                   <div className="w-12 h-12 rounded-2xl bg-[var(--app-hero)]/10 text-[var(--app-hero)] flex items-center justify-center group-hover:scale-110 transition-transform">

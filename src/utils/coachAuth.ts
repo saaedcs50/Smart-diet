@@ -1,9 +1,12 @@
 import { StorageKeys, brandStorageSlug } from './storageKeys';
 
-const HARDCODED_PIN = '32184';
-const DEFAULT_PINS = [HARDCODED_PIN, '12345'];
+// لا توجد أي رموز PIN افتراضية أو مدمجة في الكود.
+// أول استخدام: يُنشأ الرمز محليًا (إعداد أول مرة) أو يُتحقق منه عبر الخادم، ويُخزَّن هاشه المُملَّح فقط.
+export const MIN_PIN_LENGTH = 4; // حد القبول الأدنى عند التخزين (توافقًا مع رموز خادم قائمة)
+export const MIN_NEW_PIN_LENGTH = 5; // حد إنشاء رمز محلي جديد
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+const HASH_V2_PREFIX = 'v2$';
 
 function unlockKey() {
   return StorageKeys.coachUnlocked();
@@ -11,6 +14,10 @@ function unlockKey() {
 
 function pinHashKey() {
   return StorageKeys.coachPinHash();
+}
+
+function pinSaltKey() {
+  return StorageKeys.coachPinSalt();
 }
 
 function rateLimitKey() {
@@ -70,9 +77,25 @@ export function isCoachSessionUnlocked(): boolean {
   }
 }
 
+/** تعليم الجلسة كمفتوحة (يستخدمه مسار الخادم بعد تحقق ناجح) */
+export function markCoachSessionUnlocked(): void {
+  try {
+    sessionStorage.setItem(unlockKey(), 'true');
+  } catch {
+    // ignore
+  }
+}
+
 export type CoachUnlockResult =
   | { ok: true }
-  | { ok: false; error: string; remainingAttempts?: number; lockedSeconds?: number };
+  | {
+      ok: false;
+      error: string;
+      remainingAttempts?: number;
+      lockedSeconds?: number;
+      /** لا يوجد PIN مُعدّ بعد على هذا الجهاز — يلزم إعداد أول مرة */
+      needsSetup?: boolean;
+    };
 
 async function sha256Hex(text: string): Promise<string> {
   try {
@@ -99,26 +122,129 @@ function pinHashPayload(pin: string): string {
   return `clinidiet:${brandStorageSlug()}:local-pin:${pin.trim()}`;
 }
 
-export async function setCoachCustomPin(newPin: string): Promise<boolean> {
-  const trimmed = String(newPin || '').trim();
-  if (!trimmed || trimmed.length < 4) return false;
+function randomSaltHex(): string {
   try {
-    const hash = await sha256Hex(pinHashPayload(trimmed));
-    localStorage.setItem(pinHashKey(), hash);
-    return true;
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch {
+    return `${Date.now()}-${Math.random()}`;
+  }
+}
+
+/** هاش v2: SHA-256 للملح + الحمولة، بصيغة v2$<hash> والملح مخزَّن في مفتاح منفصل */
+async function saltedPinHash(pin: string, salt: string): Promise<string> {
+  return HASH_V2_PREFIX + (await sha256Hex(`${salt}:${pinHashPayload(pin)}`));
+}
+
+async function storePinHash(pin: string): Promise<void> {
+  const salt = randomSaltHex();
+  const hash = await saltedPinHash(pin, salt);
+  localStorage.setItem(pinSaltKey(), salt);
+  localStorage.setItem(pinHashKey(), hash);
+}
+
+/** مقارنة ثابتة الزمن تقريبًا لنصوص الهاش */
+function hashesEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+/** هل عُيِّن رمز PIN على هذا الجهاز من قبل؟ */
+export function hasCoachPin(): boolean {
+  try {
+    return !!localStorage.getItem(pinHashKey());
   } catch {
     return false;
   }
 }
 
 /**
+ * إعداد أول مرة: إنشاء رمز PIN جديد — متاح فقط عندما لا يوجد رمز مُعدّ بعد.
+ * لا يوجد أي رمز افتراضي يمكن الدخول به قبل هذا الإعداد.
+ */
+export async function setupCoachPin(
+  newPin: string,
+  confirmPin: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const pin = String(newPin || '').trim();
+  const confirm = String(confirmPin || '').trim();
+  if (hasCoachPin()) {
+    return { ok: false, error: 'يوجد رمز PIN مُعدّ بالفعل على هذا الجهاز.' };
+  }
+  if (pin.length < MIN_NEW_PIN_LENGTH) {
+    return { ok: false, error: `يجب أن يتكون رمز PIN من ${MIN_NEW_PIN_LENGTH} أرقام على الأقل.` };
+  }
+  if (!/^\d+$/.test(pin)) {
+    return { ok: false, error: 'يجب أن يتكون رمز PIN من أرقام فقط.' };
+  }
+  if (pin !== confirm) {
+    return { ok: false, error: 'الرمزان غير متطابقين. أعد الإدخال.' };
+  }
+  try {
+    await storePinHash(pin);
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'تعذّر حفظ الرمز. حاول مرة أخرى.' };
+  }
+}
+
+/** تغيير رمز PIN من داخل لوحة الأخصائي (بعد الدخول) — يُخزَّن دائمًا بهاش مُملَّح v2 */
+export async function setCoachCustomPin(newPin: string): Promise<boolean> {
+  const trimmed = String(newPin || '').trim();
+  if (!trimmed || trimmed.length < MIN_PIN_LENGTH) return false;
+  try {
+    await storePinHash(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function verifyPin(pin: string): Promise<boolean> {
+  const stored = localStorage.getItem(pinHashKey());
+  if (!stored) return false;
+  if (stored.startsWith(HASH_V2_PREFIX)) {
+    const salt = localStorage.getItem(pinSaltKey()) || '';
+    const candidate = await saltedPinHash(pin, salt);
+    return hashesEqual(stored, candidate);
+  }
+  // هاش قديم (v1، بلا ملح — من إصدارات سابقة): تحقق ثم رقِّ التخزين إلى v2 عند النجاح
+  const legacy = await sha256Hex(pinHashPayload(pin));
+  if (hashesEqual(stored, legacy)) {
+    try {
+      await storePinHash(pin);
+    } catch {
+      // الترقية اختيارية — لا تمنع الدخول
+    }
+    return true;
+  }
+  return false;
+}
+
+/**
  * يتحقق من صحة رمز الـ PIN محليًا بالكامل بدون أي اتصال بالإنترنت أو الخادم
- * مع تطبيق Rate Limiting محلي (5 محاولات كحد أقصى ثم قفل لمدة 5 دقائق)
+ * مع تطبيق Rate Limiting محلي (5 محاولات كحد أقصى ثم قفل لمدة 5 دقائق).
+ * لا توجد رموز افتراضية: بدون إعداد أول مرة لا يمكن الدخول.
  */
 export async function unlockCoachSession(pin: string): Promise<CoachUnlockResult> {
   const trimmed = String(pin || '').trim();
   if (!trimmed) {
     return { ok: false, error: 'يرجى إدخال رمز PIN للدخول.' };
+  }
+
+  if (!hasCoachPin()) {
+    return {
+      ok: false,
+      needsSetup: true,
+      error: 'لم يتم تعيين رمز PIN بعد على هذا الجهاز. أنشئ رمزك أولًا من شاشة الإعداد.',
+    };
   }
 
   // 1. فحص الـ Rate Limiting
@@ -135,40 +261,14 @@ export async function unlockCoachSession(pin: string): Promise<CoachUnlockResult
     };
   }
 
-  // 2. فحص الرمز محليًا
-  let isCorrect = false;
-
-  const customStoredHash = localStorage.getItem(pinHashKey());
-  if (customStoredHash) {
-    const inputHash = await sha256Hex(pinHashPayload(trimmed));
-    if (customStoredHash === inputHash) {
-      isCorrect = true;
-    }
-  }
-
-  // إذا لم يكن هناك PIN مخصص أو تطابق مع الرموز الافتراضية المعتمدة
-  if (!isCorrect) {
-    if (DEFAULT_PINS.includes(trimmed)) {
-      isCorrect = true;
-      // حفظ الهاش محليًا للمرات القادمة
-      try {
-        const hash = await sha256Hex(pinHashPayload(trimmed));
-        localStorage.setItem(pinHashKey(), hash);
-      } catch {
-        // ignore
-      }
-    }
-  }
+  // 2. التحقق من الهاش المخزَّن فقط (v2 مُملَّح، أو v1 قديم يُرقّى عند النجاح)
+  const isCorrect = await verifyPin(trimmed);
 
   // 3. في حالة النجاح
   if (isCorrect) {
     // تصفير عداد المحاولات الخاطئة
     saveRateLimitState({ attempts: 0, lockedUntil: 0 });
-    try {
-      sessionStorage.setItem(unlockKey(), 'true');
-    } catch {
-      // ignore
-    }
+    markCoachSessionUnlocked();
     return { ok: true };
   }
 
@@ -203,4 +303,3 @@ export function logoutCoachSession(): void {
     // ignore
   }
 }
-

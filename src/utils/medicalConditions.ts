@@ -182,7 +182,7 @@ export function calculateClinicalMacrosSuggestion(
  // 1. Calculate Baseline Safe TDEE estimate
  // Harris-Benedict baseline
  const estimatedBMR = Math.round(10 * clientWeight + 6.25 * clientHeight - 5 * 30 + 5);
- let baseCalories = Math.round(estimatedBMR * 1.35); // Light-moderate activity base
+ const baseCalories = Math.round(estimatedBMR * 1.35); // Light-moderate activity base
 
  // Calorie targets based on user existing goal or sensible baseline
  let targetCalories = plan.targetCalories || baseCalories;
@@ -286,10 +286,10 @@ export function calculateClinicalMacrosSuggestion(
  suggestedProtein = Math.round(clientWeight * 0.8);
  }
 
- let suggestedFats = Math.round((targetCalories * fatsRatio) / 9);
- let caloriesFromProtAndFat = suggestedProtein * 4 + suggestedFats * 9;
- let remainingCalsForCarbs = Math.max(200, targetCalories - caloriesFromProtAndFat);
- let suggestedCarbs = Math.round(remainingCalsForCarbs / 4);
+ const suggestedFats = Math.round((targetCalories * fatsRatio) / 9);
+ const caloriesFromProtAndFat = suggestedProtein * 4 + suggestedFats * 9;
+ const remainingCalsForCarbs = Math.max(200, targetCalories - caloriesFromProtAndFat);
+ const suggestedCarbs = Math.round(remainingCalsForCarbs / 4);
 
  // Recalculate true calories sum
  const finalCalories = suggestedProtein * 4 + suggestedCarbs * 4 + suggestedFats * 9;

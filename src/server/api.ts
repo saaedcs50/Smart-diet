@@ -28,43 +28,59 @@ const getSessionSecret = (): string => {
 
 // ============================================================================
 // رمز PIN الخاص بالطبيبة/الأخصائية
+// في الإنتاج: غياب COACH_PIN خطأ قاتل عند الإقلاع (انظر validateSecurityConfig).
+// الافتراضي 12345 مسموح في التطوير المحلي فقط لتجربة الواجهة.
 // ============================================================================
 let devCoachPin: string | null = null;
 const getCoachPin = (): string => {
   const pin = process.env.COACH_PIN;
   if (pin) return String(pin).trim();
 
+  if (isProd) {
+    throw new Error('COACH_PIN غير معرف في بيئة الإنتاج — أضفه في متغيرات البيئة قبل النشر.');
+  }
   if (!devCoachPin) {
     devCoachPin = '12345';
     console.warn(
-      `COACH_PIN غير معرف: استخدام الرمز الافتراضي (12345). حدد COACH_PIN في ملف .env قبل النشر.`
+      `COACH_PIN غير معرف: استخدام الرمز الافتراضي (12345) — تطوير محلي فقط. حدد COACH_PIN في ملف .env قبل النشر.`
     );
   }
   return devCoachPin;
+};
+
+/** مقارنة ثابتة الزمن: نهشّ الطرفين ثم نقارن بـ timingSafeEqual */
+const pinsEqual = (a: string, b: string): boolean => {
+  const ha = crypto.createHash('sha256').update(a).digest();
+  const hb = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(ha, hb);
 };
 
 // ============================================================================
 // حماية بسيطة ضد محاولات تخمين الـ PIN (Rate Limiting في الذاكرة)
 // ============================================================================
 const MAX_ATTEMPTS = 5;
-const LOCKOUT_MS = 5 * 60 * 1000; // 5 دقائق
-const attemptsByIp = new Map<string, { count: number; lockedUntil: number }>();
+const LOCKOUT_MS = 5 * 60 * 1000; // 5 دقائق — تتضاعف مع تكرار القفل (حتى 60 دقيقة)
+const MAX_LOCKOUT_MS = 60 * 60 * 1000;
+const attemptsByIp = new Map<string, { count: number; lockedUntil: number; lockouts: number }>();
 
 const isLockedOut = (ip: string): boolean => {
   const entry = attemptsByIp.get(ip);
   if (!entry) return false;
   if (entry.lockedUntil && entry.lockedUntil > Date.now()) return true;
   if (entry.lockedUntil && entry.lockedUntil <= Date.now()) {
-    attemptsByIp.delete(ip);
+    entry.lockedUntil = 0;
+    entry.count = 0;
   }
   return false;
 };
 
 const registerFailedAttempt = (ip: string) => {
-  const entry = attemptsByIp.get(ip) || { count: 0, lockedUntil: 0 };
+  const entry = attemptsByIp.get(ip) || { count: 0, lockedUntil: 0, lockouts: 0 };
   entry.count += 1;
   if (entry.count >= MAX_ATTEMPTS) {
-    entry.lockedUntil = Date.now() + LOCKOUT_MS;
+    const duration = Math.min(LOCKOUT_MS * 2 ** entry.lockouts, MAX_LOCKOUT_MS);
+    entry.lockedUntil = Date.now() + duration;
+    entry.lockouts += 1;
     entry.count = 0;
   }
   attemptsByIp.set(ip, entry);
@@ -112,8 +128,19 @@ export function verifySignedCoachToken(token: string): boolean {
   }
 }
 
-// فحص إعدادات الأمان عند بدء التشغيل
+// فحص إعدادات الأمان عند بدء التشغيل.
+// في الإنتاج يفشل فورًا (throw) لو SESSION_SECRET أو COACH_PIN غير معرفين — لا افتراضيات صامتة.
 export const validateSecurityConfig = (): void => {
+  if (isProd) {
+    const missing: string[] = [];
+    if (!process.env.SESSION_SECRET?.trim()) missing.push('SESSION_SECRET');
+    if (!process.env.COACH_PIN?.trim()) missing.push('COACH_PIN');
+    if (missing.length > 0) {
+      throw new Error(
+        `متغيرات أمان ناقصة في بيئة الإنتاج: ${missing.join(', ')} — عرّفها في متغيرات البيئة قبل النشر.`
+      );
+    }
+  }
   getSessionSecret();
   getCoachPin();
 };
@@ -137,7 +164,7 @@ const handleCreateSession = (req: Request, res: Response) => {
   const reqPin = String(req.body?.pin || '').trim();
   const serverPin = String(getCoachPin()).trim();
 
-  if (!reqPin || reqPin !== serverPin) {
+  if (!reqPin || !pinsEqual(reqPin, serverPin)) {
     registerFailedAttempt(ip);
     return res.status(403).json({
       ok: false,

@@ -24,7 +24,12 @@ import { BottomNav } from './components/BottomNav';
 import { TodayTab } from './components/TodayTab';
 import { BodyTab } from './components/BodyTab';
 import { PinModal } from './components/PinModal';
-import { unlockCoachSession, logoutCoachSession, isCoachSessionUnlocked } from './utils/coachAuth';
+import { unlockCoachSession, logoutCoachSession, isCoachSessionUnlocked, setCoachCustomPin, markCoachSessionUnlocked } from './utils/coachAuth';
+import {
+  createCoachServerSession,
+  saveCoachServerToken,
+  deleteCoachServerSession,
+} from './utils/coachServer';
 import { StorageKeys } from './utils/storageKeys';
 import { FeatureHelpProvider } from './components/FeatureHelpModal';
 
@@ -106,6 +111,22 @@ export default function App() {
     if (!trimmed) {
       return 'يرجى إدخال رمز PIN للدخول.';
     }
+
+    // 1) الخادم أولًا (النموذج الموثق): نجاحه يحدّث الهاش المحلي للفتح الأوفلاين لاحقًا
+    const server = await createCoachServerSession(trimmed);
+    if (server.status === 'ok') {
+      saveCoachServerToken(server.token);
+      await setCoachCustomPin(trimmed);
+      markCoachSessionUnlocked();
+      setCoachSessionUnlocked(true);
+      return true;
+    }
+    if (server.status === 'rejected' || server.status === 'locked') {
+      // الخادم ردّ صراحة — لا التفاف عبر الفتح المحلي (يحمي تغيير الرمز من الاستضافة)
+      return server.error;
+    }
+
+    // 2) لا خادم متاح (استضافة ثابتة/أوفلاين): الفتح المحلي بالهاش المخزَّن
     const res = await unlockCoachSession(trimmed);
     if (res.ok === true) {
       setCoachSessionUnlocked(true);
@@ -115,6 +136,7 @@ export default function App() {
   };
 
   const handleLogoutCoachSession = () => {
+    void deleteCoachServerSession();
     logoutCoachSession();
     setCoachSessionUnlocked(false);
   };

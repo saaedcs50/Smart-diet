@@ -128,8 +128,8 @@ export function calculateIBW(heightCm: number, gender: Gender) {
  const heightInches = heightCm / 2.54;
  const inchesOver5Ft = Math.max(0, heightInches - 60);
 
- let devine = 0;
- let hamwi = 0;
+ let devine: number;
+ let hamwi: number;
  let broca = Math.max(30, heightCm - 100);
 
  if (gender === 'male') {
@@ -161,8 +161,8 @@ export function calculateBMI(weightKg: number, heightCm: number): { bmi: number;
  const heightM = heightCm / 100;
  const bmi = Math.round((weightKg / (heightM * heightM)) * 10) / 10;
 
- let categoryAr = 'وزن طبيعي';
- let color = 'text-emerald-500';
+ let categoryAr: string;
+ let color: string;
 
  if (bmi < 18.5) {
  categoryAr = 'نقص في الوزن (Underweight)';
@@ -191,7 +191,7 @@ export function calculateWHtR(waistCm: number, heightCm: number): { ratio: numbe
  if (!heightCm || heightCm <= 0) return { ratio: 0, categoryAr: 'غير محدد' };
  const ratio = Math.round((waistCm / heightCm) * 100) / 100;
 
- let categoryAr = 'صحي جداً';
+ let categoryAr: string;
  if (ratio < 0.4) categoryAr = 'نحافة عالية في الخصر';
  else if (ratio <= 0.5) categoryAr = 'صحي ومثالي (خطر منخفض)';
  else if (ratio <= 0.6) categoryAr = 'ارتفاع طفيف في دهون البطن';
@@ -211,7 +211,7 @@ export function calculateDailyFluid(weightKg: number, activityHoursPerWeek: numb
  totalLiters: number;
  glassesCount: number;
 } {
- let baseMl = 0;
+ let baseMl: number;
  if (weightKg <= 10) {
  baseMl = weightKg * 100;
  } else if (weightKg <= 20) {
@@ -280,7 +280,7 @@ export function calculateTargetTimeline(
  const isLoss = weightDiffKg < 0;
  const isSafe = isLoss? weeklyRateKg <= maxSafeWeeklyLoss: weeklyRateKg <= 1.0;
 
- let messageAr = '';
+ let messageAr: string;
  if (isLoss) {
  if (weeklyRateKg > maxSafeWeeklyLoss) {
  messageAr = ` العجز الحالي (${Math.abs(dailyDeficitSurplusKcal)} ك.س) قد يؤدي لفقدان كتل عضلية! المعدل الآمن لجسمك هو ${minSafeWeeklyLoss} إلى ${maxSafeWeeklyLoss} كجم/أسبوع.`;
