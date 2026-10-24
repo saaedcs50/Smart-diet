@@ -162,8 +162,8 @@ export const ClinicalCalculatorSuiteModal: React.FC<ClinicalCalculatorSuiteModal
  const calculatedNavyBf = calculateUSNavyBodyFat(gender, numHeight, numNeckCm, numWaistCm, numHipCm);
  const ibwResults = calculateIBW(numHeight || 170, gender);
  const abwResult = calculateABW(numWeight || 70, ibwResults.devine);
- const bmiResult = calculateBMI(numWeight || null, numHeight || null);
- const whtrResult = calculateWHtR(numWaistCm || null, numHeight || null);
+ const bmiResult = calculateBMI(numWeight || 0, numHeight || 0);
+ const whtrResult = calculateWHtR(numWaistCm || 0, numHeight || 0);
 
  // Fluid Calculation
  const fluidResult = calculateDailyFluid(numWeight || 70, numWorkoutHours);

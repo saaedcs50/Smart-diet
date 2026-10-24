@@ -12,6 +12,14 @@ export type MedicationCategoryType =
   | 'urology'
   | 'general';
 
+/**
+ * إصدار قاعدة بيانات الأدوية — زِد الرقم وحدّث التاريخ عند أي تعديل على بيانات
+ * الأدوية أو الأسعار (المصدر: مراجعة يدوية للسوق المصري).
+ * يُعرض في تذييل دليل الأدوية حتى تعرف الأخصائية نُسخة البيانات التي تستخدمها.
+ */
+export const MEDS_DATA_VERSION = '2026.10';
+export const MEDS_DATA_UPDATED_AT = '2026-10-04';
+
 export interface EgyptianMedication {
   id: string;
   tradeName: string;

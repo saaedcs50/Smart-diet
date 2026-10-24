@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { brandCopy } from '../config/brand';
 import { BrandLogo } from './BrandLogo';
 import { BottomSheetModal } from './BottomSheetModal';
-import { getLockoutRemainingSeconds } from '../utils/coachAuth';
-import { Lock, Timer, Loader2 } from 'lucide-react';
+import { getLockoutRemainingSeconds, hasCoachPin, setupCoachPin } from '../utils/coachAuth';
+import { createCoachServerSession, saveCoachServerToken } from '../utils/coachServer';
+import { Lock, Timer, Loader2, KeyRound } from 'lucide-react';
 
 interface PinModalProps {
   onSuccess: (pin: string) => void | boolean | Promise<void | boolean | string>;
@@ -12,6 +13,9 @@ interface PinModalProps {
 
 export const PinModal: React.FC<PinModalProps> = ({ onSuccess, onClose }) => {
   const [enteredPin, setEnteredPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  // إعداد أول مرة: لا يوجد رمز مُعدّ على هذا الجهاز بعد
+  const [needsSetup] = useState<boolean>(() => !hasCoachPin());
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [lockoutSeconds, setLockoutSeconds] = useState<number>(() => getLockoutRemainingSeconds());
@@ -37,6 +41,28 @@ export const PinModal: React.FC<PinModalProps> = ({ onSuccess, onClose }) => {
     setSubmitting(true);
     setError(null);
     try {
+      if (needsSetup) {
+        // لو هناك خادم لهذه النسخة، الرمز المُنشأ يجب أن يطابق رمز الخادم (COACH_PIN)
+        const server = await createCoachServerSession(trimmed);
+        if (server.status === 'rejected') {
+          setError('هذا الرمز لا يطابق رمز الخادم المُعدّ لهذه النسخة. استخدم الرمز الذي زوّدك به مسؤول النسخة.');
+          setEnteredPin('');
+          setConfirmPin('');
+          return;
+        }
+        if (server.status === 'locked') {
+          setError(server.error);
+          return;
+        }
+        if (server.status === 'ok') {
+          saveCoachServerToken(server.token);
+        }
+        const setup = await setupCoachPin(trimmed, confirmPin.trim());
+        if (setup.ok === false) {
+          setError(setup.error);
+          return;
+        }
+      }
       const result = await onSuccess(trimmed);
       if (result === false) {
         setError(brandCopy.pinWrong);
@@ -72,7 +98,9 @@ export const PinModal: React.FC<PinModalProps> = ({ onSuccess, onClose }) => {
     >
       <form onSubmit={handleSubmit} className="space-y-4 pt-1 text-right dir-rtl">
         <p className="text-xs text-[var(--app-text-secondary)] text-center font-medium">
-          أدخل الرمز السري (PIN) للدخول وتعديل الخطة الغذائية والأهداف
+          {needsSetup
+            ? 'أول استخدام على هذا الجهاز: أنشئ رمز PIN خاصًا بك (5 أرقام على الأقل) لحماية لوحة الأخصائي'
+            : 'أدخل الرمز السري (PIN) للدخول وتعديل الخطة الغذائية والأهداف'}
         </p>
 
         {isLocked ? (
@@ -101,6 +129,21 @@ export const PinModal: React.FC<PinModalProps> = ({ onSuccess, onClose }) => {
               placeholder="•••••"
               autoFocus
             />
+            {needsSetup && (
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={8}
+                value={confirmPin}
+                onChange={(e) => {
+                  setConfirmPin(e.target.value);
+                  setError(null);
+                }}
+                className="w-full text-center text-lg tracking-[0.35em] font-bold min-h-[48px] p-3 rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] text-[var(--app-text-primary)] focus:outline-hidden focus:ring-2 focus:ring-[var(--app-hero)] mt-3"
+                placeholder="تأكيد الرمز"
+              />
+            )}
             {error && (
               <p className="text-xs text-rose-600 dark:text-rose-400 text-center font-bold leading-relaxed mt-2">
                 {error}
@@ -111,7 +154,7 @@ export const PinModal: React.FC<PinModalProps> = ({ onSuccess, onClose }) => {
 
         <button
           type="submit"
-          disabled={submitting || !enteredPin.trim() || isLocked}
+          disabled={submitting || !enteredPin.trim() || (needsSetup && !confirmPin.trim()) || isLocked}
           className="w-full min-h-[44px] rounded-2xl bg-[var(--app-hero)] hover:bg-[var(--app-hero-hover)] disabled:opacity-50 text-white text-sm font-black cursor-pointer transition-all flex items-center justify-center gap-2"
         >
           {submitting ? (
@@ -120,6 +163,11 @@ export const PinModal: React.FC<PinModalProps> = ({ onSuccess, onClose }) => {
             <>
               <Lock className="w-4 h-4" />
               <span>مغلق مؤقتًا ({timeFormatted})</span>
+            </>
+          ) : needsSetup ? (
+            <>
+              <KeyRound className="w-4 h-4" />
+              <span>إنشاء الرمز والدخول</span>
             </>
           ) : (
             <>

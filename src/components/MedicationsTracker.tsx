@@ -35,6 +35,11 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
  onUpdateDay,
 }) => {
  const medPlan = plan.medicationPlan;
+
+ // Hooks أولًا دائمًا — قبل أي إرجاع مبكر (قواعد Hooks)
+ const [expandedNotesKey, setExpandedNotesKey] = useState<string | null>(null);
+ const [editingNoteKey, setEditingNoteKey] = useState<string | null>(null);
+ const [tempNoteText, setTempNoteText] = useState('');
  // If no medications configured or coach hidden them, don't show card
  if (!medPlan || medPlan.showToClient === false ||!medPlan.items || medPlan.items.length === 0) {
  return null;
@@ -46,10 +51,6 @@ export const MedicationsTracker: React.FC<MedicationsTrackerProps> = ({
  const scheduledDoses = getAllScheduledDoses(activeItems);
  const adherence = calculateDailyMedicationAdherence(activeItems, day);
  const currentLogs = day.medications || {};
-
- const [expandedNotesKey, setExpandedNotesKey] = useState<string | null>(null);
- const [editingNoteKey, setEditingNoteKey] = useState<string | null>(null);
- const [tempNoteText, setTempNoteText] = useState('');
 
  const handleSetDoseStatus = (doseKey: string, status: DoseStatus) => {
  const currentEntry = currentLogs[doseKey];

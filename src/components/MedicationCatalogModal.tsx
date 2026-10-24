@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Search, X, Pill, Check, Clock, Info, ShieldAlert, Sparkles, Plus, Stethoscope, Heart, Activity, Flame, Feather, Sparkle } from 'lucide-react';
-import { EgyptianMedication, EGYPTIAN_MEDICATIONS_DATABASE, MEDICATION_CATEGORIES, searchEgyptianMedications } from '../utils/egyptianMedications';
+import { EgyptianMedication, EGYPTIAN_MEDICATIONS_DATABASE, MEDICATION_CATEGORIES, searchEgyptianMedications, MEDS_DATA_VERSION, MEDS_DATA_UPDATED_AT } from '../utils/egyptianMedications';
 import { SupplementItem } from '../types';
 
 interface MedicationCatalogModalProps {
@@ -121,7 +121,7 @@ export const MedicationCatalogModal: React.FC<MedicationCatalogModalProps> = ({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {filteredMedications.map((med) => {
-                const isSelected = alreadySelectedNames.some(n => n.includes(med.tradeName) || med.tradeName.includes(n));
+                const isSelected = alreadySelectedNames.some((n: string) => n.includes(med.tradeName) || med.tradeName.includes(n));
 
                 return (
                   <div
@@ -212,6 +212,9 @@ export const MedicationCatalogModal: React.FC<MedicationCatalogModalProps> = ({
           <div className="flex items-center gap-1.5">
             <Sparkles className="w-4 h-4 text-purple-500" />
             <span>يمكنك اختيار عدة أدوية متتالية لإضافتها إلى خطة المتدرب</span>
+            <span className="hidden sm:inline text-slate-400 dark:text-slate-500">
+              · بيانات الأدوية إصدار {MEDS_DATA_VERSION} (آخر تحديث {MEDS_DATA_UPDATED_AT}) — راجع الأسعار دوريًا
+            </span>
           </div>
           <button
             onClick={onClose}

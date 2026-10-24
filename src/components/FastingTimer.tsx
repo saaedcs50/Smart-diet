@@ -196,7 +196,7 @@ export const FastingTimer: React.FC<FastingTimerProps> = ({
       };
     } else {
       // Nighttime: Eating / Rehydration / Suhur window
-      let remainingSecs = 0;
+      let remainingSecs: number;
       if (currentSecs >= maghribSecs) {
         // From maghrib to midnight + midnight to fajr
         remainingSecs = (86400 - currentSecs) + fajrSecs;

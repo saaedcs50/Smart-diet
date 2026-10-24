@@ -35,7 +35,7 @@ export function parseSleepHours(sleep: string, wake: string): number {
   const [sh, sm] = sleep.split(':').map(Number);
   const [wh, wm] = wake.split(':').map(Number);
   if (isNaN(sh) || isNaN(sm) || isNaN(wh) || isNaN(wm)) return 0;
-  let startMinutes = sh * 60 + sm;
+  const startMinutes = sh * 60 + sm;
   let endMinutes = wh * 60 + wm;
   if (endMinutes <= startMinutes) {
     endMinutes += 1440; // overnight
@@ -302,7 +302,7 @@ export function calculateTDEE(
   bmr: number,
   activityOrGender: 'male' | 'female' | 'sedentary' | 'light' | 'moderate' | 'very_active' | number = 'female'
 ): number {
-  let multiplier = 1.5;
+  let multiplier: number;
   if (typeof activityOrGender === 'number') {
     multiplier = activityOrGender;
   } else if (activityOrGender === 'male') {

@@ -38,7 +38,7 @@ export function generateLocalWeeklyDraft(params: WeeklyDraftParams): string {
     }
   }
 
-  let clinicalAdvice = '';
+  let clinicalAdvice: string;
   if (avgAdherence >= 80) {
     clinicalAdvice = 'الالتزام جيد بالخطة. يُرجى الاستمرار في متابعة كميات الماء ومواعيد النوم.';
   } else if (avgAdherence >= 60) {

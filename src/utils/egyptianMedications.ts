@@ -1,4 +1,4 @@
-import { EgyptianMedication, MedicationCategoryType } from './meds/types';
+import { EgyptianMedication, MedicationCategoryType, MEDS_DATA_VERSION, MEDS_DATA_UPDATED_AT } from './meds/types';
 import { CARDIO_HYPERTENSION_MEDS } from './meds/cardioHypertension';
 import { DIABETES_ENDOCRINE_MEDS } from './meds/diabetesEndocrine';
 import { THYROID_MEDS } from './meds/thyroid';
@@ -14,6 +14,7 @@ import { MORE_SUPPLEMENTS_AND_MEDS } from './meds/moreSupplementsAndMeds';
 import { DWAPRICES_EGYPTIAN_MEDS } from './meds/dwapricesEgyptianMeds';
 
 export type { EgyptianMedication, MedicationCategoryType };
+export { MEDS_DATA_VERSION, MEDS_DATA_UPDATED_AT };
 
 /**
  * Verified Comprehensive Database of Egyptian & Global Market Medications & Supplements

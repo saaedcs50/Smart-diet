@@ -183,7 +183,8 @@ export async function checkSWHealth(): Promise<boolean> {
  if (typeof window === 'undefined' ||!('serviceWorker' in navigator)) return false;
  try {
  const reg = await navigator.serviceWorker.ready;
- if (!reg ||!reg.active) return false;
+ const activeWorker = reg?.active;
+ if (!activeWorker) return false;
 
  return new Promise((resolve) => {
  const channel = new MessageChannel();
@@ -198,7 +199,7 @@ export async function checkSWHealth(): Promise<boolean> {
  }
  };
 
- reg.active.postMessage({ type: 'SW_HEALTH_CHECK' }, [channel.port2]);
+ activeWorker.postMessage({ type: 'SW_HEALTH_CHECK' }, [channel.port2]);
  });
  } catch (e) {
  return false;
